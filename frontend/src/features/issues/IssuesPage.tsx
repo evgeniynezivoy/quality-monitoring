@@ -93,14 +93,14 @@ export function IssuesPage() {
               </div>
 
               <Select
-                value={filters.source}
-                onValueChange={(value) => handleFilterChange('source', value)}
+                value={filters.source || 'all'}
+                onValueChange={(value) => handleFilterChange('source', value === 'all' ? '' : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Source" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Sources</SelectItem>
+                  <SelectItem value="all">All Sources</SelectItem>
                   {sourcesData?.sources?.map((s: { name: string }) => (
                     <SelectItem key={s.name} value={s.name}>
                       {s.name}
@@ -110,14 +110,14 @@ export function IssuesPage() {
               </Select>
 
               <Select
-                value={filters.issue_rate}
-                onValueChange={(value) => handleFilterChange('issue_rate', value)}
+                value={filters.issue_rate || 'all'}
+                onValueChange={(value) => handleFilterChange('issue_rate', value === 'all' ? '' : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Severity" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Severities</SelectItem>
+                  <SelectItem value="all">All Severities</SelectItem>
                   <SelectItem value="1">Minor (1)</SelectItem>
                   <SelectItem value="2">Medium (2)</SelectItem>
                   <SelectItem value="3">Critical (3)</SelectItem>
@@ -125,14 +125,14 @@ export function IssuesPage() {
               </Select>
 
               <Select
-                value={filters.issue_category}
-                onValueChange={(value) => handleFilterChange('issue_category', value)}
+                value={filters.issue_category || 'all'}
+                onValueChange={(value) => handleFilterChange('issue_category', value === 'all' ? '' : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="internal">Internal</SelectItem>
                 </SelectContent>
