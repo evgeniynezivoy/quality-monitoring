@@ -260,7 +260,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_week_start FROM date_ranges) AND i.issue_date < (SELECT week_start FROM date_ranges)) as last_week,
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT month_start FROM date_ranges)) as this_month,
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_month_start FROM date_ranges) AND i.issue_date < (SELECT last_month_end FROM date_ranges)) as last_month,
-          ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) as sources
+          ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL AND i.issue_date >= (SELECT week_start FROM date_ranges)) as sources
         FROM issues i
         LEFT JOIN users u ON i.responsible_cc_id = u.id
         LEFT JOIN users tl ON u.team_lead_id = tl.id
