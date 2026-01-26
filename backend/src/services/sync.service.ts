@@ -214,6 +214,17 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
       [sourceId]
     );
 
+    // Link issues to users by matching responsible_cc_name with full_name
+    await query(`
+      UPDATE issues i
+      SET responsible_cc_id = u.id
+      FROM users u
+      WHERE i.source_id = $1
+        AND i.responsible_cc_id IS NULL
+        AND i.responsible_cc_name IS NOT NULL
+        AND LOWER(TRIM(i.responsible_cc_name)) = LOWER(TRIM(u.full_name))
+    `, [sourceId]);
+
     // Update sync log
     await query(
       `UPDATE sync_logs SET
