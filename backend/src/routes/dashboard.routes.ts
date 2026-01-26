@@ -86,7 +86,13 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
 
       // Fill in missing dates
       const trends: { date: string; count: number }[] = [];
-      const dataMap = new Map(result.rows.map((r) => [r.date, parseInt(r.count, 10)]));
+      const dataMap = new Map(result.rows.map((r) => {
+        // Convert date to string (PostgreSQL returns Date object)
+        const dateStr = r.date instanceof Date
+          ? r.date.toISOString().split('T')[0]
+          : String(r.date).split('T')[0];
+        return [dateStr, parseInt(r.count, 10)];
+      }));
 
       for (let i = 0; i < days; i++) {
         const date = new Date(Date.now() - (days - 1 - i) * 24 * 60 * 60 * 1000);
