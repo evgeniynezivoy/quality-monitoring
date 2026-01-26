@@ -52,7 +52,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const user = await createUser(body.data);
+        const user = await createUser({
+          email: body.data.email,
+          password: body.data.password,
+          full_name: body.data.full_name,
+          team: body.data.team,
+          role: body.data.role,
+          team_lead_id: body.data.team_lead_id ?? undefined,
+        });
         return reply.status(201).send(user);
       } catch (error: any) {
         if (error.code === '23505') {
