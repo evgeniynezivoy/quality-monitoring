@@ -4,10 +4,8 @@ import { dashboardApi } from '@/lib/api';
 import {
   AlertCircle,
   TrendingUp,
-  TrendingDown,
   Calendar,
   AlertTriangle,
-  Users,
   ArrowUpRight,
   ArrowDownRight,
 } from 'lucide-react';
@@ -27,12 +25,6 @@ import {
 } from 'recharts';
 
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
-const GRADIENT_COLORS = [
-  { start: '#6366f1', end: '#818cf8' },
-  { start: '#22c55e', end: '#4ade80' },
-  { start: '#f59e0b', end: '#fbbf24' },
-  { start: '#ef4444', end: '#f87171' },
-];
 
 interface StatCardProps {
   title: string;
@@ -330,7 +322,7 @@ export function DashboardPage() {
               </div>
             </div>
             <div className="mt-4 space-y-2">
-              {pieData.slice(0, 5).map((item: any, index: number) => (
+              {pieData.slice(0, 5).map((item: any) => (
                 <div key={item.source} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.fill }} />
