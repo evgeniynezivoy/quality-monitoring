@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import '../types/fastify.js';
 import { authenticate } from '../middleware/auth.js';
 import { query } from '../config/database.js';
 import { buildRoleWhereClause } from '../middleware/roles.js';

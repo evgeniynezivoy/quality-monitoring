@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import '../types/fastify.js';
 import { authenticate } from '../middleware/auth.js';
 import { getIssues, getIssueById, getIssueStats } from '../services/issues.service.js';
 import { IssueFilters } from '../types/index.js';

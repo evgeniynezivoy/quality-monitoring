@@ -1,11 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { JwtPayload } from '../types/index.js';
-
-declare module 'fastify' {
-  interface FastifyRequest {
-    user: JwtPayload;
-  }
-}
+import '../types/fastify.js';
 
 export async function authenticate(
   request: FastifyRequest,

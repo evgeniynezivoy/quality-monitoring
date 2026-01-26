@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { authenticate, requireAdmin, requireTeamLead } from '../middleware/auth.js';
+import '../types/fastify.js';
+import { authenticate, requireTeamLead } from '../middleware/auth.js';
 import { getAllUsers, findUserById, getTeamMembers } from '../services/users.service.js';
 
 export async function usersRoutes(fastify: FastifyInstance) {

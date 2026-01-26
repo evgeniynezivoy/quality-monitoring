@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import '../types/fastify.js';
 import { z } from 'zod';
 import { validatePassword, findUserById, createUser, setPassword } from '../services/users.service.js';
 import { query } from '../config/database.js';
