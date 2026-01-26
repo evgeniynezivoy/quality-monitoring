@@ -147,7 +147,7 @@ export function DashboardPage() {
                         `${name} ${(percent * 100).toFixed(0)}%`
                       }
                     >
-                      {(bySource?.by_source || []).map((_, index) => (
+                      {(bySource?.by_source || []).map((_entry: { source: string; count: number }, index: number) => (
                         <Cell
                           key={`cell-${index}`}
                           fill={COLORS[index % COLORS.length]}
