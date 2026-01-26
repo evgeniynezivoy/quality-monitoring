@@ -379,58 +379,76 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {/* Quick Stats */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          {/* Performance Summary with People Lists */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 overflow-hidden">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Summary</h3>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-500 rounded-lg">
-                    <TrendingDown className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-emerald-900">Improving</p>
-                    <p className="text-sm text-emerald-600">People with fewer errors vs last 7 days</p>
+              {/* Improving */}
+              <div className="bg-emerald-50 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-500 rounded-lg">
+                      <TrendingDown className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-emerald-900">Improving ({improvingCount})</p>
+                      <p className="text-xs text-emerald-600">Fewer errors vs last 7 days</p>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold text-emerald-600">{improvingCount}</span>
-                  <p className="text-xs text-emerald-500">people</p>
-                </div>
+                {improvingCount > 0 && (
+                  <div className="px-4 pb-3 max-h-32 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1.5">
+                      {ccAnalytics
+                        .filter(cc => cc.status === 'improving')
+                        .sort((a, b) => a.week_trend - b.week_trend)
+                        .map(cc => (
+                          <span
+                            key={cc.cc_id}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium"
+                            title={`${cc.this_week} vs ${cc.last_week} (${cc.week_trend}%)`}
+                          >
+                            {cc.cc_name.split(' ')[0]}
+                            <span className="text-emerald-500">{cc.week_trend}%</span>
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-rose-50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-rose-500 rounded-lg">
-                    <TrendingUp className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-rose-900">Declining</p>
-                    <p className="text-sm text-rose-600">People with more errors vs last 7 days</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold text-rose-600">{decliningCount}</span>
-                  <p className="text-xs text-rose-500">people</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-500 rounded-lg">
-                    <Minus className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">Stable</p>
-                    <p className="text-sm text-slate-600">No significant change vs last 7 days</p>
+              {/* Declining */}
+              <div className="bg-rose-50 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-rose-500 rounded-lg">
+                      <TrendingUp className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-rose-900">Declining ({decliningCount})</p>
+                      <p className="text-xs text-rose-600">More errors vs last 7 days</p>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold text-slate-600">
-                    {ccAnalytics.filter(cc => cc.status === 'stable').length}
-                  </span>
-                  <p className="text-xs text-slate-500">people</p>
-                </div>
+                {decliningCount > 0 && (
+                  <div className="px-4 pb-3 max-h-32 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1.5">
+                      {ccAnalytics
+                        .filter(cc => cc.status === 'declining')
+                        .sort((a, b) => b.week_trend - a.week_trend)
+                        .map(cc => (
+                          <span
+                            key={cc.cc_id}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 rounded text-xs font-medium"
+                            title={`${cc.this_week} vs ${cc.last_week} (+${cc.week_trend}%)`}
+                          >
+                            {cc.cc_name.split(' ')[0]}
+                            <span className="text-rose-500">+{cc.week_trend}%</span>
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
