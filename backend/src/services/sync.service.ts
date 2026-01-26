@@ -137,7 +137,6 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
     let rowsUpdated = 0;
 
     let skippedNoDate = 0;
-    let skippedNoType = 0;
     const skippedSamples: any[] = [];
 
     for (const row of sheetData.rows) {
@@ -152,14 +151,7 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
         continue; // Skip rows without valid date
       }
 
-      const issueType = findColumnValue(row, COLUMN_MAPPINGS.issue_type);
-      if (!issueType) {
-        skippedNoType++;
-        if (skippedSamples.length < 5) {
-          skippedSamples.push({ reason: 'no_type', dateValue, parsedDate, row });
-        }
-        continue; // Skip rows without issue type
-      }
+      const issueType = findColumnValue(row, COLUMN_MAPPINGS.issue_type) || '-';
 
       const rowHash = generateRowHash(row);
 
@@ -221,9 +213,11 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
     }
 
     // Log skipped rows
-    if (skippedNoDate > 0 || skippedNoType > 0) {
-      console.log(`Sync source ${sourceId}: Skipped ${skippedNoDate} rows (no date), ${skippedNoType} rows (no type)`);
-      console.log('Skipped samples:', JSON.stringify(skippedSamples, null, 2));
+    if (skippedNoDate > 0) {
+      console.log(`Sync source ${sourceId}: Skipped ${skippedNoDate} rows (no date)`);
+      if (skippedSamples.length > 0) {
+        console.log('Skipped samples:', JSON.stringify(skippedSamples.slice(0, 3), null, 2));
+      }
     }
 
     // Update source last_sync_at
