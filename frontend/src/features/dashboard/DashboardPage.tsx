@@ -37,8 +37,7 @@ interface CCAnalytics {
   this_month: number;
   last_month: number;
   month_trend: number;
-  critical_count: number;
-  avg_rate: number | null;
+  sources: string[];
   status: 'improving' | 'declining' | 'stable';
 }
 
@@ -228,18 +227,26 @@ function CCTableRow({ cc, rank }: { cc: CCAnalytics; rank: number }) {
           </span>
         </div>
       </td>
-      <td className="px-4 py-4 text-center">
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-          (cc.avg_rate || 0) >= 2.5 ? 'bg-rose-100 text-rose-700' :
-          (cc.avg_rate || 0) >= 1.5 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-        }`}>
-          {cc.avg_rate?.toFixed(1) || '-'}
-        </span>
-      </td>
-      <td className="px-4 py-4 text-center">
-        <span className={`font-medium ${cc.critical_count > 10 ? 'text-rose-600' : 'text-gray-600'}`}>
-          {cc.critical_count}
-        </span>
+      <td className="px-4 py-4">
+        <div className="flex flex-wrap gap-1">
+          {cc.sources && cc.sources.length > 0 ? cc.sources.map(source => (
+            <span
+              key={source}
+              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                source === 'LV' ? 'bg-blue-100 text-blue-700' :
+                source === 'CS' ? 'bg-purple-100 text-purple-700' :
+                source === 'Block' ? 'bg-orange-100 text-orange-700' :
+                source === 'CDT_CW' ? 'bg-cyan-100 text-cyan-700' :
+                source === 'QA' ? 'bg-pink-100 text-pink-700' :
+                'bg-gray-100 text-gray-700'
+              }`}
+            >
+              {source}
+            </span>
+          )) : (
+            <span className="text-gray-400 text-xs">-</span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-4">
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${status.bg} ${status.text}`}>
@@ -295,9 +302,14 @@ export function DashboardPage() {
     const matchesSearch = cc.cc_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           cc.team.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesTeam = teamFilter === 'all' || cc.team === teamFilter;
-    const matchesStatus = statusFilter === 'all' ? true :
-                          statusFilter === 'active' ? (cc.status === 'improving' || cc.status === 'declining') :
-                          cc.status === statusFilter;
+    let matchesStatus = true;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'active') {
+      matchesStatus = cc.status === 'improving' || cc.status === 'declining';
+    } else {
+      matchesStatus = cc.status === statusFilter;
+    }
     return matchesSearch && matchesTeam && matchesStatus;
   });
 
@@ -488,8 +500,7 @@ export function DashboardPage() {
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">This Week</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Trend</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Rate</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Critical</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sources</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>

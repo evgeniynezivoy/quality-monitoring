@@ -240,8 +240,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         last_week: string;
         this_month: string;
         last_month: string;
-        critical_count: string;
-        avg_rate: string;
+        sources: string[];
       }>(
         `WITH date_ranges AS (
           SELECT
@@ -261,11 +260,11 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_week_start FROM date_ranges) AND i.issue_date < (SELECT week_start FROM date_ranges)) as last_week,
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT month_start FROM date_ranges)) as this_month,
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_month_start FROM date_ranges) AND i.issue_date < (SELECT last_month_end FROM date_ranges)) as last_month,
-          COUNT(*) FILTER (WHERE i.issue_rate = 3) as critical_count,
-          ROUND(AVG(i.issue_rate)::numeric, 2) as avg_rate
+          ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) as sources
         FROM issues i
         LEFT JOIN users u ON i.responsible_cc_id = u.id
         LEFT JOIN users tl ON u.team_lead_id = tl.id
+        LEFT JOIN issue_sources s ON i.source_id = s.id
         WHERE ${roleFilter.clause}
         GROUP BY COALESCE(i.responsible_cc_id, 0), COALESCE(u.full_name, i.responsible_cc_name, 'Unknown'), COALESCE(u.team, 'Unknown'), COALESCE(tl.full_name, 'N/A')
         ORDER BY total_issues DESC`,
@@ -294,8 +293,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
             this_month: thisMonth,
             last_month: lastMonth,
             month_trend: monthTrend,
-            critical_count: parseInt(r.critical_count, 10),
-            avg_rate: parseFloat(r.avg_rate) || null,
+            sources: r.sources || [],
             status: weekTrend < 0 ? 'improving' : weekTrend > 0 ? 'declining' : 'stable',
           };
         }),
