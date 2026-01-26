@@ -2,22 +2,21 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { JwtPayload } from '../types/index.js';
 import '../types/fastify.js';
 
+// Mock user for development - replace with corporate auth before release
+const MOCK_USER: JwtPayload = {
+  userId: 1,
+  email: 'admin@quality.local',
+  role: 'admin',
+  team: 'QA',
+};
+
 export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  try {
-    const token = request.headers.authorization?.replace('Bearer ', '');
-
-    if (!token) {
-      return reply.status(401).send({ error: 'No token provided' });
-    }
-
-    const decoded = await request.jwtVerify<JwtPayload>();
-    request.user = decoded;
-  } catch (err) {
-    return reply.status(401).send({ error: 'Invalid or expired token' });
-  }
+  // TODO: Replace with corporate auth module before release
+  // For now, use mock admin user
+  request.user = MOCK_USER;
 }
 
 export function requireRole(...allowedRoles: Array<'admin' | 'team_lead' | 'cc'>) {
