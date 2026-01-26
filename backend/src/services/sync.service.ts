@@ -44,33 +44,40 @@ function generateRowHash(row: Record<string, string>): string {
 function parseDate(value: string | null): string | null {
   if (!value) return null;
 
-  // Try various date formats
-  const formats = [
-    /^(\d{4})-(\d{2})-(\d{2})$/,           // 2024-01-15
-    /^(\d{2})\.(\d{2})\.(\d{4})$/,         // 15.01.2024
-    /^(\d{2})\/(\d{2})\/(\d{4})$/,         // 15/01/2024 or 01/15/2024
-    /^(\d{1,2})\s+(\w+)\s+(\d{4})$/,       // 15 Jan 2024
-  ];
+  const trimmed = value.trim();
 
-  // ISO format
-  if (formats[0].test(value)) {
-    return value;
+  // ISO format: 2024-01-15
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
-  // DD.MM.YYYY
-  const match1 = value.match(formats[1]);
-  if (match1) {
-    return `${match1[3]}-${match1[2]}-${match1[1]}`;
+  // MM/DD/YYYY format (American - used in Google Sheets): 1/15/2024 or 01/15/2024
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, part1, part2, year] = slashMatch;
+    const month = parseInt(part1, 10);
+    const day = parseInt(part2, 10);
+
+    // Validate: if first part > 12, it's likely DD/MM/YYYY format
+    if (month <= 12 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (day <= 12 && month <= 31) {
+      // Swap: treat as DD/MM/YYYY
+      return `${year}-${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}`;
+    }
   }
 
-  // DD/MM/YYYY
-  const match2 = value.match(formats[2]);
-  if (match2) {
-    return `${match2[3]}-${match2[2]}-${match2[1]}`;
+  // DD.MM.YYYY format: 15.01.2024
+  const dotMatch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (dotMatch) {
+    const [, day, month, year] = dotMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
   // Try native Date parsing as fallback
-  const parsed = new Date(value);
+  const parsed = new Date(trimmed);
   if (!isNaN(parsed.getTime())) {
     return parsed.toISOString().split('T')[0];
   }
