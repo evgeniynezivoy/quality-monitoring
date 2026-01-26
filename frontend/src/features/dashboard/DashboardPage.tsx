@@ -254,7 +254,7 @@ function CCTableRow({ cc, rank }: { cc: CCAnalytics; rank: number }) {
 export function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [teamFilter, setTeamFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['dashboard', 'overview'],
@@ -295,7 +295,9 @@ export function DashboardPage() {
     const matchesSearch = cc.cc_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           cc.team.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesTeam = teamFilter === 'all' || cc.team === teamFilter;
-    const matchesStatus = statusFilter === 'all' || cc.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' ? true :
+                          statusFilter === 'active' ? (cc.status === 'improving' || cc.status === 'declining') :
+                          cc.status === statusFilter;
     return matchesSearch && matchesTeam && matchesStatus;
   });
 
@@ -379,76 +381,40 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {/* Performance Summary with People Lists */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 overflow-hidden">
+          {/* Performance Summary */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Summary</h3>
             <div className="space-y-4">
-              {/* Improving */}
-              <div className="bg-emerald-50 rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500 rounded-lg">
-                      <TrendingDown className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-emerald-900">Improving ({improvingCount})</p>
-                      <p className="text-xs text-emerald-600">Fewer errors vs last 7 days</p>
-                    </div>
+              <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500 rounded-lg">
+                    <TrendingDown className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-emerald-900">Improving</p>
+                    <p className="text-xs text-emerald-600">↓ fewer errors vs last 7 days</p>
                   </div>
                 </div>
-                {improvingCount > 0 && (
-                  <div className="px-4 pb-3 max-h-32 overflow-y-auto">
-                    <div className="flex flex-wrap gap-1.5">
-                      {ccAnalytics
-                        .filter(cc => cc.status === 'improving')
-                        .sort((a, b) => a.week_trend - b.week_trend)
-                        .map(cc => (
-                          <span
-                            key={cc.cc_id}
-                            className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium"
-                            title={`${cc.this_week} vs ${cc.last_week} (${cc.week_trend}%)`}
-                          >
-                            {cc.cc_name.split(' ')[0]}
-                            <span className="text-emerald-500">{cc.week_trend}%</span>
-                          </span>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-emerald-600">{improvingCount}</span>
+                  <p className="text-xs text-emerald-500">people</p>
+                </div>
               </div>
 
-              {/* Declining */}
-              <div className="bg-rose-50 rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-rose-500 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-rose-900">Declining ({decliningCount})</p>
-                      <p className="text-xs text-rose-600">More errors vs last 7 days</p>
-                    </div>
+              <div className="flex items-center justify-between p-4 bg-rose-50 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-500 rounded-lg">
+                    <TrendingUp className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-rose-900">Declining</p>
+                    <p className="text-xs text-rose-600">↑ more errors vs last 7 days</p>
                   </div>
                 </div>
-                {decliningCount > 0 && (
-                  <div className="px-4 pb-3 max-h-32 overflow-y-auto">
-                    <div className="flex flex-wrap gap-1.5">
-                      {ccAnalytics
-                        .filter(cc => cc.status === 'declining')
-                        .sort((a, b) => b.week_trend - a.week_trend)
-                        .map(cc => (
-                          <span
-                            key={cc.cc_id}
-                            className="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 rounded text-xs font-medium"
-                            title={`${cc.this_week} vs ${cc.last_week} (+${cc.week_trend}%)`}
-                          >
-                            {cc.cc_name.split(' ')[0]}
-                            <span className="text-rose-500">+{cc.week_trend}%</span>
-                          </span>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-rose-600">{decliningCount}</span>
+                  <p className="text-xs text-rose-500">people</p>
+                </div>
               </div>
             </div>
           </div>
@@ -503,10 +469,11 @@ export function DashboardPage() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
+                  <option value="active">↑↓ Improving & Declining</option>
                   <option value="all">All Status</option>
-                  <option value="improving">Improving</option>
-                  <option value="stable">Stable</option>
-                  <option value="declining">Declining</option>
+                  <option value="improving">↓ Improving only</option>
+                  <option value="declining">↑ Declining only</option>
+                  <option value="stable">→ Stable only</option>
                 </select>
               </div>
             </div>
