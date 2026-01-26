@@ -12,9 +12,7 @@ import {
   Users,
   ArrowUpRight,
   ArrowDownRight,
-  ChevronDown,
   Search,
-  Filter,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -24,9 +22,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
 } from 'recharts';
 
 // Types
