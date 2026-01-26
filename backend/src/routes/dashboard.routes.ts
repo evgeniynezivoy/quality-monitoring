@@ -220,4 +220,153 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       });
     }
   );
+
+  // CC Performance with trends (analytics)
+  fastify.get(
+    '/api/dashboard/cc-analytics',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const roleFilter = buildRoleWhereClause(request.user);
+      const params = roleFilter.params;
+
+      // Get CC stats with current week, last week, current month comparison
+      const result = await query<{
+        cc_id: number;
+        cc_name: string;
+        team: string;
+        team_lead_name: string;
+        total_issues: string;
+        this_week: string;
+        last_week: string;
+        this_month: string;
+        last_month: string;
+        critical_count: string;
+        avg_rate: string;
+      }>(
+        `WITH date_ranges AS (
+          SELECT
+            CURRENT_DATE - INTERVAL '7 days' as week_start,
+            CURRENT_DATE - INTERVAL '14 days' as last_week_start,
+            DATE_TRUNC('month', CURRENT_DATE) as month_start,
+            DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' as last_month_start,
+            DATE_TRUNC('month', CURRENT_DATE) as last_month_end
+        )
+        SELECT
+          COALESCE(i.responsible_cc_id, 0) as cc_id,
+          COALESCE(u.full_name, i.responsible_cc_name, 'Unknown') as cc_name,
+          COALESCE(u.team, 'Unknown') as team,
+          COALESCE(tl.full_name, 'N/A') as team_lead_name,
+          COUNT(*) as total_issues,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT week_start FROM date_ranges)) as this_week,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_week_start FROM date_ranges) AND i.issue_date < (SELECT week_start FROM date_ranges)) as last_week,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT month_start FROM date_ranges)) as this_month,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_month_start FROM date_ranges) AND i.issue_date < (SELECT last_month_end FROM date_ranges)) as last_month,
+          COUNT(*) FILTER (WHERE i.issue_rate = 3) as critical_count,
+          ROUND(AVG(i.issue_rate)::numeric, 2) as avg_rate
+        FROM issues i
+        LEFT JOIN users u ON i.responsible_cc_id = u.id
+        LEFT JOIN users tl ON u.team_lead_id = tl.id
+        WHERE ${roleFilter.clause}
+        GROUP BY COALESCE(i.responsible_cc_id, 0), COALESCE(u.full_name, i.responsible_cc_name, 'Unknown'), COALESCE(u.team, 'Unknown'), COALESCE(tl.full_name, 'N/A')
+        ORDER BY total_issues DESC`,
+        params
+      );
+
+      return reply.send({
+        cc_analytics: result.rows.map((r) => {
+          const thisWeek = parseInt(r.this_week, 10);
+          const lastWeek = parseInt(r.last_week, 10);
+          const weekTrend = lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : (thisWeek > 0 ? 100 : 0);
+
+          const thisMonth = parseInt(r.this_month, 10);
+          const lastMonth = parseInt(r.last_month, 10);
+          const monthTrend = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : (thisMonth > 0 ? 100 : 0);
+
+          return {
+            cc_id: r.cc_id,
+            cc_name: r.cc_name,
+            team: r.team,
+            team_lead: r.team_lead_name,
+            total_issues: parseInt(r.total_issues, 10),
+            this_week: thisWeek,
+            last_week: lastWeek,
+            week_trend: weekTrend,
+            this_month: thisMonth,
+            last_month: lastMonth,
+            month_trend: monthTrend,
+            critical_count: parseInt(r.critical_count, 10),
+            avg_rate: parseFloat(r.avg_rate) || null,
+            status: weekTrend < 0 ? 'improving' : weekTrend > 0 ? 'declining' : 'stable',
+          };
+        }),
+      });
+    }
+  );
+
+  // Team Performance with trends
+  fastify.get(
+    '/api/dashboard/team-analytics',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const roleFilter = buildRoleWhereClause(request.user);
+      const params = roleFilter.params;
+
+      const result = await query<{
+        team: string;
+        team_lead_name: string;
+        cc_count: string;
+        total_issues: string;
+        this_week: string;
+        last_week: string;
+        this_month: string;
+        critical_count: string;
+        avg_rate: string;
+      }>(
+        `WITH date_ranges AS (
+          SELECT
+            CURRENT_DATE - INTERVAL '7 days' as week_start,
+            CURRENT_DATE - INTERVAL '14 days' as last_week_start
+        )
+        SELECT
+          COALESCE(u.team, 'Unknown') as team,
+          MAX(tl.full_name) as team_lead_name,
+          COUNT(DISTINCT i.responsible_cc_id) as cc_count,
+          COUNT(*) as total_issues,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT week_start FROM date_ranges)) as this_week,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_week_start FROM date_ranges) AND i.issue_date < (SELECT week_start FROM date_ranges)) as last_week,
+          COUNT(*) FILTER (WHERE i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)) as this_month,
+          COUNT(*) FILTER (WHERE i.issue_rate = 3) as critical_count,
+          ROUND(AVG(i.issue_rate)::numeric, 2) as avg_rate
+        FROM issues i
+        LEFT JOIN users u ON i.responsible_cc_id = u.id
+        LEFT JOIN users tl ON u.team_lead_id = tl.id
+        WHERE ${roleFilter.clause}
+        GROUP BY COALESCE(u.team, 'Unknown')
+        ORDER BY total_issues DESC`,
+        params
+      );
+
+      return reply.send({
+        team_analytics: result.rows.map((r) => {
+          const thisWeek = parseInt(r.this_week, 10);
+          const lastWeek = parseInt(r.last_week, 10);
+          const weekTrend = lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : 0;
+
+          return {
+            team: r.team,
+            team_lead: r.team_lead_name || 'N/A',
+            cc_count: parseInt(r.cc_count, 10),
+            total_issues: parseInt(r.total_issues, 10),
+            this_week: thisWeek,
+            last_week: lastWeek,
+            week_trend: weekTrend,
+            this_month: parseInt(r.this_month, 10),
+            critical_count: parseInt(r.critical_count, 10),
+            avg_rate: parseFloat(r.avg_rate) || null,
+            status: weekTrend < -10 ? 'improving' : weekTrend > 10 ? 'declining' : 'stable',
+          };
+        }),
+      });
+    }
+  );
 }

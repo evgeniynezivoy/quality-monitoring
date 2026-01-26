@@ -65,6 +65,14 @@ export const dashboardApi = {
     const response = await api.get('/api/dashboard/by-source');
     return response.data;
   },
+  ccAnalytics: async () => {
+    const response = await api.get('/api/dashboard/cc-analytics');
+    return response.data;
+  },
+  teamAnalytics: async () => {
+    const response = await api.get('/api/dashboard/team-analytics');
+    return response.data;
+  },
 };
 
 export const usersApi = {
