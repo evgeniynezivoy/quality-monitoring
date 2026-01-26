@@ -87,9 +87,11 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       // Fill in missing dates
       const trends: { date: string; count: number }[] = [];
       const dataMap = new Map(result.rows.map((r) => {
-        // Convert date to string (PostgreSQL returns Date object)
-        const dateStr = r.date instanceof Date
-          ? r.date.toISOString().split('T')[0]
+        // Convert date to string format YYYY-MM-DD
+        // PostgreSQL may return Date object or string depending on driver
+        const dateVal = r.date as unknown;
+        const dateStr = dateVal instanceof Date
+          ? dateVal.toISOString().split('T')[0]
           : String(r.date).split('T')[0];
         return [dateStr, parseInt(r.count, 10)];
       }));
