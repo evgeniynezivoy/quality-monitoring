@@ -320,7 +320,7 @@ export function DashboardPage() {
           <StatCard
             title="This Week"
             value={overview?.issues_this_week || 0}
-            subtitle={`${improvingCount} improving, ${decliningCount} declining`}
+            subtitle={`${improvingCount} ↓ fewer errors, ${decliningCount} ↑ more errors`}
             icon={<Calendar className="w-6 h-6" />}
             trend={teamAnalytics.reduce((sum, t) => sum + t.week_trend, 0) / (teamAnalytics.length || 1)}
             color="emerald"
@@ -390,10 +390,13 @@ export function DashboardPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-emerald-900">Improving</p>
-                    <p className="text-sm text-emerald-600">Less issues than last week</p>
+                    <p className="text-sm text-emerald-600">People with fewer errors vs last 7 days</p>
                   </div>
                 </div>
-                <span className="text-2xl font-bold text-emerald-600">{improvingCount}</span>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-emerald-600">{improvingCount}</span>
+                  <p className="text-xs text-emerald-500">people</p>
+                </div>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-rose-50 rounded-xl">
@@ -403,10 +406,13 @@ export function DashboardPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-rose-900">Declining</p>
-                    <p className="text-sm text-rose-600">More issues than last week</p>
+                    <p className="text-sm text-rose-600">People with more errors vs last 7 days</p>
                   </div>
                 </div>
-                <span className="text-2xl font-bold text-rose-600">{decliningCount}</span>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-rose-600">{decliningCount}</span>
+                  <p className="text-xs text-rose-500">people</p>
+                </div>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
@@ -416,12 +422,15 @@ export function DashboardPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-slate-900">Stable</p>
-                    <p className="text-sm text-slate-600">Similar to last week</p>
+                    <p className="text-sm text-slate-600">No significant change vs last 7 days</p>
                   </div>
                 </div>
-                <span className="text-2xl font-bold text-slate-600">
-                  {ccAnalytics.filter(cc => cc.status === 'stable').length}
-                </span>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-slate-600">
+                    {ccAnalytics.filter(cc => cc.status === 'stable').length}
+                  </span>
+                  <p className="text-xs text-slate-500">people</p>
+                </div>
               </div>
             </div>
           </div>
