@@ -1,99 +1,163 @@
 # Quality Monitoring System
 
-Web-платформа для мониторинга качества работы команд с синхронизацией данных из Google Sheets.
-
-## Tech Stack
-
-- **Frontend**: React + TypeScript + Vite + TailwindCSS + shadcn/ui
-- **Backend**: Node.js + Fastify + TypeScript
-- **Database**: PostgreSQL
-- **Auth**: JWT + роли (Admin / Team Lead / CC)
-- **Deployment**: Docker Compose
+Web-платформа для мониторинга качества работы команд Campaign Coordinators (CC). Автоматическая синхронизация данных об ошибках из Google Sheets каждые 10 минут.
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 20+
-- Docker & Docker Compose
-- Google Cloud Service Account with Sheets API access
-
-### Development Setup
-
-1. Clone the repository:
 ```bash
+# Clone repository
 git clone https://github.com/evgeniynezivoy/quality-monitoring.git
 cd quality-monitoring
-```
 
-2. Copy environment file:
-```bash
+# Copy environment file
 cp .env.example .env
 # Edit .env with your credentials
+
+# Start with Docker
+docker compose up -d
+
+# Access
+# Frontend: http://localhost:8080
+# Backend API: http://localhost:3000
 ```
 
-3. Start with Docker Compose:
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18 + TypeScript + Vite + TailwindCSS + shadcn/ui |
+| Backend | Node.js 20 + Fastify + TypeScript |
+| Database | PostgreSQL 15 |
+| Auth | JWT + Role-based access (Admin / Team Lead / CC) |
+| Data Sync | Google Sheets API (every 10 min via cron) |
+| Deployment | Docker Compose on VPS |
+
+## Project Structure
+
+```
+quality-monitoring/
+├── backend/                 # Fastify API server
+│   ├── src/
+│   │   ├── config/          # Database, Google Sheets, env config
+│   │   ├── routes/          # API endpoints
+│   │   ├── services/        # Business logic (sync service)
+│   │   ├── middleware/      # Auth, role-based filtering
+│   │   ├── types/           # TypeScript interfaces
+│   │   └── index.ts         # Entry point
+│   ├── Dockerfile
+│   └── package.json
+├── frontend/                # React SPA
+│   ├── src/
+│   │   ├── components/      # Reusable UI (shadcn/ui, layout)
+│   │   ├── features/        # Page modules (dashboard, issues, admin)
+│   │   ├── lib/             # API client, utilities
+│   │   ├── hooks/           # React hooks
+│   │   └── main.tsx         # Entry point
+│   ├── Dockerfile
+│   └── package.json
+├── database/                # SQL schemas and migrations
+│   └── schema.sql
+├── docs/                    # Full documentation
+│   ├── ARCHITECTURE.md      # System design
+│   ├── API.md               # REST API reference
+│   ├── DATABASE.md          # Schema documentation
+│   ├── DEPLOYMENT.md        # Production setup
+│   ├── DEVELOPMENT.md       # Local dev guide
+│   └── SYNC.md              # Google Sheets sync
+├── docker-compose.yml
+└── .env.example
+```
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | System design, data flow, component diagram |
+| [API Reference](docs/API.md) | All REST endpoints with request/response examples |
+| [Database Schema](docs/DATABASE.md) | Tables, relationships, indexes, queries |
+| [Deployment](docs/DEPLOYMENT.md) | Docker, VPS setup, SSL, monitoring |
+| [Development](docs/DEVELOPMENT.md) | Local setup, coding guidelines, testing |
+| [Google Sheets Sync](docs/SYNC.md) | Data sources, column mappings, troubleshooting |
+
+## Key Features
+
+### Analytics Dashboard
+- KPI cards (Total Issues, This Week, This Month, Critical)
+- 30-day trend chart
+- Team performance cards with week-over-week comparison
+- CC performance table with search, filters, status indicators
+
+### Issue Management
+- Paginated table with all issues
+- Filters: date range, source, team, CC, severity
+- Export to CSV
+
+### Role-Based Access Control
+| Role | Data Access | Features |
+|------|-------------|----------|
+| Admin | All data | User management, sync control, settings |
+| Team Lead | Own team's data | Team analytics |
+| CC | Own data only | Personal issues view |
+
+### Auto Sync
+- Google Sheets data pulled every 10 minutes
+- 5 sources: LV, CS, Block, CDT_CW, QA
+- Deduplication via row hash
+- Auto-linking CC names to user accounts
+
+## Environment Variables
+
+```env
+# Database
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=quality_monitoring
+DB_USER=quality_user
+DB_PASSWORD=secure_password_here
+
+# JWT Authentication
+JWT_SECRET=your_super_secret_jwt_key_here
+JWT_EXPIRES_IN=7d
+
+# Google Sheets API (Service Account)
+GOOGLE_SERVICE_ACCOUNT_EMAIL=sa@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+# Frontend (Vite)
+VITE_API_URL=http://localhost:3000
+```
+
+## Production Environment
+
+| Service | URL | Port |
+|---------|-----|------|
+| Frontend | http://37.27.5.172:8080 | 8080 |
+| Backend API | http://37.27.5.172:3000 | 3000 |
+| PostgreSQL | 37.27.5.172:5450 | 5450 |
+
+## Common Commands
+
 ```bash
-docker-compose up -d
+# Development
+cd backend && npm run dev      # Start backend in dev mode
+cd frontend && npm run dev     # Start frontend in dev mode
+
+# Production
+docker compose up -d --build   # Build and start all services
+docker compose logs -f         # View logs
+docker compose down            # Stop all services
+
+# Database
+docker exec -it qm-postgres psql -U quality_user -d quality_monitoring
+
+# Manual sync trigger
+curl -X POST http://localhost:3000/api/sync/trigger
 ```
 
-4. Access the application:
-- Frontend: http://localhost
-- Backend API: http://localhost:3000
+## Support
 
-### Local Development (without Docker)
-
-Backend:
-```bash
-cd backend
-npm install
-npm run dev
-```
-
-Frontend:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## Default Credentials
-
-After first start, register the first user at `/login` - they will automatically become admin.
-
-## API Endpoints
-
-### Authentication
-- `POST /auth/login` - Login
-- `POST /auth/logout` - Logout
-- `GET /auth/me` - Current user
-- `POST /auth/refresh` - Refresh token
-
-### Issues
-- `GET /api/issues` - List issues (paginated, filtered)
-- `GET /api/issues/:id` - Get single issue
-- `GET /api/issues/stats` - Get statistics
-- `GET /api/issues/export` - Export to CSV
-
-### Dashboard
-- `GET /api/dashboard/overview` - Summary stats
-- `GET /api/dashboard/trends` - Time series data
-- `GET /api/dashboard/by-team` - Stats by team
-- `GET /api/dashboard/by-cc` - Stats by CC
-
-### Sync (Admin only)
-- `POST /api/sync/trigger` - Trigger manual sync
-- `GET /api/sync/status` - Get sync status
-- `GET /api/sync/logs` - Get sync history
-
-## Role-Based Access
-
-| Role | Access |
-|------|--------|
-| Admin | Full access |
-| Team Lead | Team members' issues |
-| CC | Own issues only |
+For issues or questions, contact the development team or create an issue in the repository.
 
 ## License
 
-MIT
+Internal use only - INFUSE
