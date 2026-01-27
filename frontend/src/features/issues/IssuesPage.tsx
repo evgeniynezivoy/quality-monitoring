@@ -18,11 +18,6 @@ import { Search, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { Issue } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 
-interface GroupedIssues {
-  date: string;
-  issues: (Issue & { source_name: string; cc_name: string })[];
-}
-
 export function IssuesPage() {
   const { user } = useAuth();
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
