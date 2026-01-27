@@ -36,9 +36,15 @@ function findColumnValue(row: Record<string, string>, mappings: string[]): strin
   return null;
 }
 
-function generateRowHash(row: Record<string, string>): string {
-  const str = JSON.stringify(row);
-  return crypto.createHash('sha256').update(str).digest('hex').substring(0, 64);
+function generateRowHash(row: Record<string, string>, sourceId: number): string {
+  // Use key fields only: CID + Date + CC Name + Source
+  // This allows updates to other fields (comments, rate) without creating duplicates
+  const cid = findColumnValue(row, COLUMN_MAPPINGS.cid) || '';
+  const date = findColumnValue(row, COLUMN_MAPPINGS.issue_date) || '';
+  const cc = findColumnValue(row, COLUMN_MAPPINGS.responsible_cc_name) || '';
+
+  const keyStr = `${sourceId}|${cid.toLowerCase().trim()}|${date.trim()}|${cc.toLowerCase().trim()}`;
+  return crypto.createHash('sha256').update(keyStr).digest('hex').substring(0, 64);
 }
 
 function parseDate(value: string | null): string | null {
@@ -153,7 +159,7 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
 
       const issueType = findColumnValue(row, COLUMN_MAPPINGS.issue_type) || '-';
 
-      const rowHash = generateRowHash(row);
+      const rowHash = generateRowHash(row, sourceId);
 
       const issueData = {
         source_id: sourceId,
