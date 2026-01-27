@@ -1,7 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -10,174 +12,188 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { dashboardApi, usersApi } from '@/lib/api';
+import { syncApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { User } from '@/types';
+
+interface TeamMember {
+  id: number;
+  full_name: string;
+  email: string;
+  team: string;
+}
+
+interface TeamStructure {
+  team_lead_id: number;
+  team_lead_name: string;
+  team_lead_email: string;
+  team_members: TeamMember[] | null;
+}
 
 export function TeamPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
-  const { data: usersData } = useQuery({
-    queryKey: ['users'],
-    queryFn: usersApi.list,
+  const { data: teamData, isLoading } = useQuery({
+    queryKey: ['team-structure'],
+    queryFn: syncApi.teamStructure,
   });
 
-  const { data: byCC } = useQuery({
-    queryKey: ['dashboard', 'byCC'],
-    queryFn: () => dashboardApi.byCC(50),
+  const syncMutation = useMutation({
+    mutationFn: syncApi.syncTeam,
+    onSuccess: (data) => {
+      setSyncMessage(
+        `Sync completed: ${data.team_leads_created + data.team_leads_updated} team leads, ${data.ccs_created + data.ccs_updated} CCs`
+      );
+      queryClient.invalidateQueries({ queryKey: ['team-structure'] });
+      setTimeout(() => setSyncMessage(null), 5000);
+    },
+    onError: (error: any) => {
+      setSyncMessage(`Sync failed: ${error.message}`);
+      setTimeout(() => setSyncMessage(null), 5000);
+    },
   });
 
-  const { data: byTeam } = useQuery({
-    queryKey: ['dashboard', 'byTeam'],
-    queryFn: dashboardApi.byTeam,
-  });
+  const teams: TeamStructure[] = teamData?.teams || [];
+  const totalTeamLeads = teams.length;
+  const totalMembers = teams.reduce(
+    (sum, t) => sum + (t.team_members?.length || 0),
+    0
+  );
 
-  const teamMembers = usersData?.users || [];
-  const ccStats = byCC?.by_cc || [];
-
-  // Merge user data with stats
-  const membersWithStats = teamMembers.map((member: User) => {
-    const stats = ccStats.find((s: any) => s.cc_id === member.id);
-    return {
-      ...member,
-      issue_count: stats?.count || 0,
-      rate_avg: stats?.rate_avg || null,
-    };
-  });
+  const isAdmin = user?.role === 'admin';
 
   return (
     <div>
-      <Header title="Team Overview" />
+      <Header title="Team Structure" />
       <div className="p-6 space-y-6">
-        {/* Team Stats */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Team Leads</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalTeamLeads}</div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Team Members</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{teamMembers.length}</div>
+              <div className="text-2xl font-bold">{totalMembers}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Active Members</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Avg Team Size
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {teamMembers.filter((m: User) => m.is_active !== false).length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Team Issues</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {membersWithStats.reduce((sum: number, m: any) => sum + m.issue_count, 0)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Avg Issues/Member</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {teamMembers.length > 0
-                  ? (
-                      membersWithStats.reduce((sum: number, m: any) => sum + m.issue_count, 0) /
-                      teamMembers.length
-                    ).toFixed(1)
+                {totalTeamLeads > 0
+                  ? (totalMembers / totalTeamLeads).toFixed(1)
                   : '0'}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Team by Department */}
-        {user?.role === 'admin' && byTeam?.by_team && (
+        {/* Sync Button */}
+        {isAdmin && (
           <Card>
             <CardHeader>
-              <CardTitle>Issues by Team</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Team Roster Sync</span>
+                <Button
+                  onClick={() => syncMutation.mutate()}
+                  disabled={syncMutation.isPending}
+                >
+                  {syncMutation.isPending ? 'Syncing...' : 'Sync from Google Sheets'}
+                </Button>
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Team</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Minor (1)</TableHead>
-                    <TableHead className="text-right">Medium (2)</TableHead>
-                    <TableHead className="text-right">Critical (3)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {byTeam.by_team.map((team: any) => (
-                    <TableRow key={team.team}>
-                      <TableCell className="font-medium">{team.team}</TableCell>
-                      <TableCell className="text-right">{team.count}</TableCell>
-                      <TableCell className="text-right">{team.rate_1}</TableCell>
-                      <TableCell className="text-right">{team.rate_2}</TableCell>
-                      <TableCell className="text-right text-red-600">{team.rate_3}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
+            {syncMessage && (
+              <CardContent>
+                <div
+                  className={`p-3 rounded ${
+                    syncMessage.includes('failed')
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-green-100 text-green-800'
+                  }`}
+                >
+                  {syncMessage}
+                </div>
+              </CardContent>
+            )}
           </Card>
         )}
 
-        {/* Team Members */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Team Members</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Team</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead className="text-right">Issues</TableHead>
-                  <TableHead className="text-right">Avg Rate</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {membersWithStats.map((member: any) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.full_name}</TableCell>
-                    <TableCell>{member.email}</TableCell>
-                    <TableCell>{member.team}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{member.role}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{member.issue_count}</TableCell>
-                    <TableCell className="text-right">
-                      {member.rate_avg ? member.rate_avg.toFixed(2) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={member.is_active !== false ? 'success' : 'secondary'}>
-                        {member.is_active !== false ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {membersWithStats.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      No team members found
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Team Structure */}
+        {isLoading ? (
+          <Card>
+            <CardContent className="py-8 text-center">Loading...</CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {teams.map((team) => (
+              <Card key={team.team_lead_id}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span>{team.team_lead_name}</span>
+                    <Badge variant="outline">
+                      {team.team_members?.length || 0} members
+                    </Badge>
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {team.team_lead_email}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {team.team_members && team.team_members.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {team.team_members.map((member) => (
+                          <TableRow key={member.id}>
+                            <TableCell className="font-medium py-2">
+                              {member.full_name}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground py-2">
+                              {member.email}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No team members
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {teams.length === 0 && !isLoading && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground mb-4">
+                No team structure found. Click the sync button to import from
+                Google Sheets.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

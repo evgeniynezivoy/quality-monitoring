@@ -99,6 +99,14 @@ export const syncApi = {
     const response = await api.get('/api/sync/logs', { params: { limit } });
     return response.data;
   },
+  teamStructure: async () => {
+    const response = await api.get('/api/sync/team');
+    return response.data;
+  },
+  syncTeam: async () => {
+    const response = await api.post('/api/sync/team');
+    return response.data;
+  },
 };
 
 export const adminApi = {
