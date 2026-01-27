@@ -40,6 +40,15 @@ services:
       GOOGLE_SERVICE_ACCOUNT_EMAIL: ${GOOGLE_SERVICE_ACCOUNT_EMAIL}
       GOOGLE_PRIVATE_KEY: ${GOOGLE_PRIVATE_KEY}
       SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-10}
+      # SMTP
+      SMTP_HOST: ${SMTP_HOST:-mail.itclouddelivery.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-no-reply@reports.infuse.com}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      # Reports
+      ENABLE_DAILY_REPORTS: ${ENABLE_DAILY_REPORTS:-true}
+      DAILY_REPORT_SCHEDULE: ${DAILY_REPORT_SCHEDULE:-0 8 * * *}
+      REPORT_RECIPIENTS: ${REPORT_RECIPIENTS}
     ports:
       - "3000:3000"
     depends_on:
