@@ -81,7 +81,7 @@ export function IssuesPage() {
             <CardTitle className="text-lg">Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -121,20 +121,6 @@ export function IssuesPage() {
                   <SelectItem value="1">Minor (1)</SelectItem>
                   <SelectItem value="2">Medium (2)</SelectItem>
                   <SelectItem value="3">Critical (3)</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={filters.issue_category || 'all'}
-                onValueChange={(value) => handleFilterChange('issue_category', value === 'all' ? '' : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="client">Client</SelectItem>
-                  <SelectItem value="internal">Internal</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -180,7 +166,6 @@ export function IssuesPage() {
                       <TableHead>CID</TableHead>
                       <TableHead>Issue Type</TableHead>
                       <TableHead>Rate</TableHead>
-                      <TableHead>Category</TableHead>
                       <TableHead>Comment</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -205,21 +190,14 @@ export function IssuesPage() {
                             '-'
                           )}
                         </TableCell>
-                        <TableCell>
-                          {issue.issue_category ? (
-                            <Badge variant="secondary">{issue.issue_category}</Badge>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate">
+                        <TableCell className="max-w-[300px] truncate">
                           {issue.comment || '-'}
                         </TableCell>
                       </TableRow>
                     ))}
                     {(!data?.data || data.data.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8">
+                        <TableCell colSpan={7} className="text-center py-8">
                           No issues found
                         </TableCell>
                       </TableRow>
