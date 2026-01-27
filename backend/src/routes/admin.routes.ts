@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { getAllUsers, updateUser, createUser, setPassword } from '../services/users.service.js';
 import { query } from '../config/database.js';
+import { fetchSheetData } from '../config/google-sheets.js';
 
 const updateUserSchema = z.object({
   email: z.string().email().optional(),
@@ -177,6 +178,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
 
       return reply.send(result.rows[0]);
+    }
+  );
+
+  // Fetch Google Sheet data (admin) - for debugging
+  fastify.get(
+    '/api/admin/sheet-preview',
+    { preHandler: [authenticate, requireAdmin] },
+    async (
+      request: FastifyRequest<{ Querystring: { spreadsheetId: string; gid?: string } }>,
+      reply: FastifyReply
+    ) => {
+      const { spreadsheetId, gid } = request.query;
+
+      if (!spreadsheetId) {
+        return reply.status(400).send({ error: 'spreadsheetId is required' });
+      }
+
+      try {
+        const data = await fetchSheetData(spreadsheetId, gid || '0');
+        return reply.send(data);
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
     }
   );
 
