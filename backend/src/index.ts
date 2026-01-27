@@ -2,7 +2,7 @@ import { buildApp } from './app.js';
 import { env } from './config/env.js';
 import { testConnection } from './config/database.js';
 import { syncAllSources } from './services/sync.service.js';
-import { sendDailyReport, getReportRecipients } from './services/report.service.js';
+import { sendAllDailyReports } from './services/report.service.js';
 import { verifyEmailConnection } from './config/email.js';
 import cron from 'node-cron';
 
@@ -45,25 +45,24 @@ async function main() {
       console.warn('Google Sheets credentials not configured. Sync disabled.');
     }
 
-    // Schedule daily report cron job
-    const reportSchedule = process.env.DAILY_REPORT_SCHEDULE || '0 8 * * *'; // 8:00 AM UTC
+    // Schedule daily report cron job - 7 AM EST = 12:00 UTC
+    const reportSchedule = process.env.DAILY_REPORT_SCHEDULE || '0 12 * * *';
     if (process.env.ENABLE_DAILY_REPORTS !== 'false') {
-      // Verify email connection
       const emailOk = await verifyEmailConnection();
       if (emailOk) {
-        console.log(`Scheduling daily reports: ${reportSchedule}`);
+        console.log(`Scheduling daily reports at ${reportSchedule} (7 AM EST)`);
         cron.schedule(reportSchedule, async () => {
-          console.log('Starting scheduled daily report...');
+          console.log('Starting scheduled daily reports...');
           try {
-            const recipients = await getReportRecipients();
-            if (recipients.length > 0) {
-              const result = await sendDailyReport(recipients);
-              console.log('Daily report result:', result.message);
-            } else {
-              console.log('No recipients configured for daily report');
-            }
+            const results = await sendAllDailyReports();
+            console.log('Operations report:', results.operationsReport.message);
+            const sentReports = results.teamLeadReports.filter(r => r.issueCount && r.issueCount > 0);
+            console.log(`Team Lead reports sent: ${sentReports.length}`);
+            sentReports.forEach(r => {
+              console.log(`  - ${r.teamLead}: ${r.issueCount} issues`);
+            });
           } catch (error) {
-            console.error('Daily report failed:', error);
+            console.error('Daily reports failed:', error);
           }
         });
       } else {
