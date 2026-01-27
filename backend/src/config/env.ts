@@ -22,6 +22,17 @@ const envSchema = z.object({
   GOOGLE_PRIVATE_KEY: z.string().optional(),
 
   SYNC_INTERVAL_MINUTES: z.string().default('10'),
+
+  // SMTP
+  SMTP_HOST: z.string().default('mail.itclouddelivery.com'),
+  SMTP_PORT: z.string().default('587'),
+  SMTP_USER: z.string().default('no-reply@reports.infuse.com'),
+  SMTP_PASSWORD: z.string().optional(),
+
+  // Reports
+  REPORT_RECIPIENTS: z.string().optional(),
+  DAILY_REPORT_SCHEDULE: z.string().default('0 8 * * *'),
+  ENABLE_DAILY_REPORTS: z.string().default('true'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -56,4 +67,17 @@ export const env = {
   },
 
   syncIntervalMinutes: parseInt(parsed.data.SYNC_INTERVAL_MINUTES, 10),
+
+  smtp: {
+    host: parsed.data.SMTP_HOST,
+    port: parseInt(parsed.data.SMTP_PORT, 10),
+    user: parsed.data.SMTP_USER,
+    password: parsed.data.SMTP_PASSWORD,
+  },
+
+  reports: {
+    recipients: parsed.data.REPORT_RECIPIENTS,
+    schedule: parsed.data.DAILY_REPORT_SCHEDULE,
+    enabled: parsed.data.ENABLE_DAILY_REPORTS === 'true',
+  },
 };

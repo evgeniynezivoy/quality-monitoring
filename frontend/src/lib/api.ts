@@ -123,3 +123,30 @@ export const adminApi = {
     return response.data;
   },
 };
+
+export const reportsApi = {
+  getDailyReport: async (date?: string) => {
+    const response = await api.get('/api/reports/daily', { params: { date } });
+    return response.data;
+  },
+  previewReport: async (date?: string) => {
+    const response = await api.get('/api/reports/daily/preview', { params: { date } });
+    return response.data;
+  },
+  sendReport: async (recipients?: string[], date?: string) => {
+    const response = await api.post('/api/reports/daily/send', { recipients, date });
+    return response.data;
+  },
+  testConnection: async () => {
+    const response = await api.get('/api/reports/test-connection');
+    return response.data;
+  },
+  testSend: async (email: string) => {
+    const response = await api.post('/api/reports/test-send', { email });
+    return response.data;
+  },
+  getRecipients: async () => {
+    const response = await api.get('/api/reports/recipients');
+    return response.data;
+  },
+};

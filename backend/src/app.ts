@@ -9,6 +9,7 @@ import { dashboardRoutes } from './routes/dashboard.routes.js';
 import { usersRoutes } from './routes/users.routes.js';
 import { syncRoutes } from './routes/sync.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
+import { reportsRoutes } from './routes/reports.routes.js';
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -49,6 +50,7 @@ export async function buildApp() {
   await fastify.register(usersRoutes);
   await fastify.register(syncRoutes);
   await fastify.register(adminRoutes);
+  await fastify.register(reportsRoutes);
 
   // Global error handler
   fastify.setErrorHandler((error, request, reply) => {
