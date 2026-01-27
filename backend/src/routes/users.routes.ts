@@ -116,4 +116,20 @@ export async function usersRoutes(fastify: FastifyInstance) {
       });
     }
   );
+
+  // Get team leads for dropdown
+  fastify.get(
+    '/api/users/team-leads',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const users = await getAllUsers({ role: 'team_lead', is_active: true });
+
+      return reply.send({
+        team_leads: users.map((u) => ({
+          id: u.id,
+          full_name: u.full_name,
+        })),
+      });
+    }
+  );
 }

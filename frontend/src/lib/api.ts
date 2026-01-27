@@ -84,6 +84,10 @@ export const usersApi = {
     const response = await api.get('/api/users/dropdown');
     return response.data;
   },
+  teamLeads: async () => {
+    const response = await api.get('/api/users/team-leads');
+    return response.data;
+  },
 };
 
 export const syncApi = {

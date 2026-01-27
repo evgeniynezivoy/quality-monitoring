@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -11,28 +11,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { issuesApi, syncApi } from '@/lib/api';
+import { issuesApi, syncApi, usersApi } from '@/lib/api';
 import { formatDate, getRateColor, getRateLabel } from '@/lib/utils';
-import { Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { Issue } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+
+interface GroupedIssues {
+  date: string;
+  issues: (Issue & { source_name: string; cc_name: string })[];
+}
 
 export function IssuesPage() {
+  const { user } = useAuth();
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
-    page: 1,
-    limit: 20,
     search: '',
     source: '',
     issue_rate: '',
-    issue_category: '',
+    team_lead_id: '',
     date_from: '',
     date_to: '',
   });
@@ -42,22 +40,68 @@ export function IssuesPage() {
     queryFn: () => syncApi.status(),
   });
 
+  const { data: teamLeadsData } = useQuery({
+    queryKey: ['team-leads'],
+    queryFn: () => usersApi.teamLeads(),
+  });
+
+  // Fetch more issues for timeline view
   const { data, isLoading } = useQuery({
     queryKey: ['issues', filters],
     queryFn: () =>
       issuesApi.list({
-        ...filters,
+        page: 1,
+        limit: 500, // Get more for grouping
         source: filters.source || undefined,
         issue_rate: filters.issue_rate ? parseInt(filters.issue_rate) : undefined,
-        issue_category: filters.issue_category || undefined,
+        team_lead_id: filters.team_lead_id ? parseInt(filters.team_lead_id) : undefined,
         date_from: filters.date_from || undefined,
         date_to: filters.date_to || undefined,
         search: filters.search || undefined,
       }),
   });
 
+  // Group issues by date
+  const groupedIssues = useMemo(() => {
+    if (!data?.data) return [];
+
+    const groups: Record<string, (Issue & { source_name: string; cc_name: string })[]> = {};
+
+    data.data.forEach((issue: Issue & { source_name: string; cc_name: string }) => {
+      const date = issue.issue_date;
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(issue);
+    });
+
+    return Object.entries(groups)
+      .map(([date, issues]) => ({ date, issues }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [data?.data]);
+
   const handleFilterChange = (key: string, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleDate = (date: string) => {
+    setExpandedDates((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(date)) {
+        newSet.delete(date);
+      } else {
+        newSet.add(date);
+      }
+      return newSet;
+    });
+  };
+
+  const expandAll = () => {
+    setExpandedDates(new Set(groupedIssues.map((g) => g.date)));
+  };
+
+  const collapseAll = () => {
+    setExpandedDates(new Set());
   };
 
   const handleExport = () => {
@@ -66,22 +110,32 @@ export function IssuesPage() {
     if (filters.date_to) params.set('date_to', filters.date_to);
     if (filters.source) params.set('source', filters.source);
     if (filters.issue_rate) params.set('issue_rate', filters.issue_rate);
-    if (filters.issue_category) params.set('issue_category', filters.issue_category);
+    if (filters.team_lead_id) params.set('team_lead_id', filters.team_lead_id);
 
     window.open(`/api/issues/export?${params.toString()}`, '_blank');
   };
 
+  // Auto-expand first 3 dates
+  useMemo(() => {
+    if (groupedIssues.length > 0 && expandedDates.size === 0) {
+      setExpandedDates(new Set(groupedIssues.slice(0, 3).map((g) => g.date)));
+    }
+  }, [groupedIssues.length]);
+
+  const isTeamLead = user?.role === 'team_lead';
+  const isAdmin = user?.role === 'admin';
+
   return (
     <div>
-      <Header title="Issues" />
+      <Header title="Issues Timeline" />
       <div className="p-6 space-y-4">
         {/* Filters */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="text-lg">Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -91,6 +145,28 @@ export function IssuesPage() {
                   className="pl-8"
                 />
               </div>
+
+              {/* Team Lead filter - only for admins */}
+              {isAdmin && (
+                <Select
+                  value={filters.team_lead_id || 'all'}
+                  onValueChange={(value) =>
+                    handleFilterChange('team_lead_id', value === 'all' ? '' : value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Team Lead" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Team Leads</SelectItem>
+                    {teamLeadsData?.team_leads?.map((tl: { id: number; full_name: string }) => (
+                      <SelectItem key={tl.id} value={tl.id.toString()}>
+                        {tl.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               <Select
                 value={filters.source || 'all'}
@@ -111,7 +187,9 @@ export function IssuesPage() {
 
               <Select
                 value={filters.issue_rate || 'all'}
-                onValueChange={(value) => handleFilterChange('issue_rate', value === 'all' ? '' : value)}
+                onValueChange={(value) =>
+                  handleFilterChange('issue_rate', value === 'all' ? '' : value)
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Severity" />
@@ -139,7 +217,15 @@ export function IssuesPage() {
               />
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-between">
+              <div className="space-x-2">
+                <Button variant="outline" size="sm" onClick={expandAll}>
+                  Expand All
+                </Button>
+                <Button variant="outline" size="sm" onClick={collapseAll}>
+                  Collapse All
+                </Button>
+              </div>
               <Button variant="outline" onClick={handleExport}>
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
@@ -148,105 +234,144 @@ export function IssuesPage() {
           </CardContent>
         </Card>
 
-        {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex h-64 items-center justify-center">
-                Loading...
+        {/* Summary */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Issues</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{data?.pagination?.total || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Days with Issues</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{groupedIssues.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Critical</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {data?.data?.filter((i: Issue) => i.issue_rate === 3).length || 0}
               </div>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>CC Name</TableHead>
-                      <TableHead>CID</TableHead>
-                      <TableHead>Issue Type</TableHead>
-                      <TableHead>Rate</TableHead>
-                      <TableHead>Comment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data?.data?.map((issue: Issue) => (
-                      <TableRow key={issue.id}>
-                        <TableCell>{formatDate(issue.issue_date)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{issue.source_name}</Badge>
-                        </TableCell>
-                        <TableCell>{issue.cc_name || issue.responsible_cc_name || '-'}</TableCell>
-                        <TableCell>{issue.cid || '-'}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">
-                          {issue.issue_type}
-                        </TableCell>
-                        <TableCell>
-                          {issue.issue_rate ? (
-                            <Badge className={getRateColor(issue.issue_rate)}>
-                              {getRateLabel(issue.issue_rate)}
-                            </Badge>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-[300px] truncate">
-                          {issue.comment || '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {(!data?.data || data.data.length === 0) && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">
-                          No issues found
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Avg per Day</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {groupedIssues.length > 0
+                  ? ((data?.data?.length || 0) / groupedIssues.length).toFixed(1)
+                  : '0'}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-                {/* Pagination */}
-                {data?.pagination && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {(data.pagination.page - 1) * data.pagination.limit + 1} to{' '}
-                      {Math.min(
-                        data.pagination.page * data.pagination.limit,
-                        data.pagination.total
-                      )}{' '}
-                      of {data.pagination.total} results
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setFilters((prev) => ({ ...prev, page: prev.page - 1 }))
-                        }
-                        disabled={data.pagination.page === 1}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="text-sm">
-                        Page {data.pagination.page} of {data.pagination.totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setFilters((prev) => ({ ...prev, page: prev.page + 1 }))
-                        }
-                        disabled={data.pagination.page >= data.pagination.totalPages}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {/* Timeline */}
+        {isLoading ? (
+          <Card>
+            <CardContent className="py-8 text-center">Loading...</CardContent>
+          </Card>
+        ) : groupedIssues.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              No issues found
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {groupedIssues.map((group) => {
+              const isExpanded = expandedDates.has(group.date);
+              const criticalCount = group.issues.filter((i) => i.issue_rate === 3).length;
+              const mediumCount = group.issues.filter((i) => i.issue_rate === 2).length;
+
+              return (
+                <Card key={group.date}>
+                  <CardHeader
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => toggleDate(group.date)}
+                  >
+                    <CardTitle className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronUp className="h-5 w-5" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5" />
+                        )}
+                        <span className="text-lg">{formatDate(group.date)}</span>
+                        <Badge variant="secondary">{group.issues.length} issues</Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        {criticalCount > 0 && (
+                          <Badge className="bg-red-500">{criticalCount} Critical</Badge>
+                        )}
+                        {mediumCount > 0 && (
+                          <Badge className="bg-yellow-500">{mediumCount} Medium</Badge>
+                        )}
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  {isExpanded && (
+                    <CardContent className="pt-0">
+                      <div className="space-y-2">
+                        {group.issues.map((issue) => (
+                          <div
+                            key={issue.id}
+                            className="flex items-start gap-4 p-3 rounded-lg bg-muted/30 hover:bg-muted/50"
+                          >
+                            <Badge variant="outline" className="shrink-0">
+                              {issue.source_name}
+                            </Badge>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">
+                                  {issue.cc_name || issue.responsible_cc_name || 'Unknown'}
+                                </span>
+                                {issue.cid && (
+                                  <span className="text-sm text-muted-foreground">
+                                    ({issue.cid})
+                                  </span>
+                                )}
+                              </div>
+                              {issue.issue_type && issue.issue_type !== '-' && (
+                                <div className="text-sm text-muted-foreground">
+                                  {issue.issue_type}
+                                </div>
+                              )}
+                              {issue.comment && issue.comment !== '-' && (
+                                <p className="text-sm mt-1 text-muted-foreground line-clamp-2">
+                                  {issue.comment}
+                                </p>
+                              )}
+                            </div>
+                            <div className="shrink-0">
+                              {issue.issue_rate ? (
+                                <Badge className={getRateColor(issue.issue_rate)}>
+                                  {getRateLabel(issue.issue_rate)}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">-</Badge>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

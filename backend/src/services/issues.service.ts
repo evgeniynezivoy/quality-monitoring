@@ -35,6 +35,11 @@ export async function getIssues(
     params.push(filters.responsible_cc_id);
   }
 
+  if (filters.team_lead_id) {
+    whereClauses.push(`u.team_lead_id = $${paramIndex++}`);
+    params.push(filters.team_lead_id);
+  }
+
   if (filters.issue_rate) {
     whereClauses.push(`i.issue_rate = $${paramIndex++}`);
     params.push(filters.issue_rate);
