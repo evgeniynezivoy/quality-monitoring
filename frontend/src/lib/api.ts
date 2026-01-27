@@ -149,6 +149,10 @@ export const reportsApi = {
     const response = await api.post('/api/reports/daily/send', { recipients, date });
     return response.data;
   },
+  sendAllReports: async (date?: string) => {
+    const response = await api.post('/api/reports/send-all', { date });
+    return response.data;
+  },
   testConnection: async () => {
     const response = await api.get('/api/reports/test-connection');
     return response.data;
@@ -159,6 +163,14 @@ export const reportsApi = {
   },
   getRecipients: async () => {
     const response = await api.get('/api/reports/recipients');
+    return response.data;
+  },
+  getEmailLogs: async (limit?: number) => {
+    const response = await api.get('/api/reports/email-logs', { params: { limit } });
+    return response.data;
+  },
+  cleanupEmailLogs: async () => {
+    const response = await api.post('/api/reports/email-logs/cleanup');
     return response.data;
   },
 };

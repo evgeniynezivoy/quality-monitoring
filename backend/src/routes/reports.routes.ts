@@ -12,6 +12,8 @@ import {
   sendAllDailyReports,
   getAllTeamLeads,
   getOperationsTeam,
+  getEmailLogs,
+  cleanupOldEmailLogs,
 } from '../services/report.service.js';
 import { verifyEmailConnection } from '../config/email.js';
 
@@ -278,6 +280,40 @@ export async function reportsRoutes(fastify: FastifyInstance) {
           teamLeadsSkipped: results.teamLeadReports.filter(r => r.success && (!r.issueCount || r.issueCount === 0)).length,
           teamLeadsFailed: results.teamLeadReports.filter(r => !r.success).length,
         },
+      });
+    }
+  );
+
+  // Get email logs
+  fastify.get(
+    '/api/reports/email-logs',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (request.user?.role !== 'admin') {
+        return reply.status(403).send({ error: 'Admin access required' });
+      }
+
+      const queryParams = request.query as { limit?: string };
+      const limit = queryParams.limit ? parseInt(queryParams.limit, 10) : 100;
+
+      const logs = await getEmailLogs(limit);
+      return reply.send({ logs });
+    }
+  );
+
+  // Cleanup old email logs (manual trigger)
+  fastify.post(
+    '/api/reports/email-logs/cleanup',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (request.user?.role !== 'admin') {
+        return reply.status(403).send({ error: 'Admin access required' });
+      }
+
+      const deleted = await cleanupOldEmailLogs();
+      return reply.send({
+        message: `Deleted ${deleted} old email logs`,
+        deleted,
       });
     }
   );

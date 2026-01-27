@@ -19,14 +19,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { adminApi, syncApi } from '@/lib/api';
+import { adminApi, syncApi, reportsApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
-import { RefreshCw, Users, Database, Activity } from 'lucide-react';
+import { RefreshCw, Users, Database, Activity, Mail, Trash2 } from 'lucide-react';
 import { User, IssueSource, SyncLog } from '@/types';
+
+interface EmailLog {
+  id: number;
+  report_type: string;
+  report_date: string;
+  recipient_email: string;
+  recipient_name: string | null;
+  subject: string;
+  issues_count: number;
+  status: string;
+  error_message: string | null;
+  sent_at: string;
+}
 
 export function AdminPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'users' | 'sources' | 'sync'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'sources' | 'sync' | 'emails'>('users');
 
   const { data: stats } = useQuery({
     queryKey: ['admin', 'stats'],
@@ -54,6 +67,11 @@ export function AdminPage() {
     refetchInterval: 10000,
   });
 
+  const { data: emailLogs } = useQuery({
+    queryKey: ['reports', 'email-logs'],
+    queryFn: () => reportsApi.getEmailLogs(100),
+  });
+
   const triggerSyncMutation = useMutation({
     mutationFn: syncApi.trigger,
     onSuccess: () => {
@@ -66,6 +84,20 @@ export function AdminPage() {
       adminApi.updateUser(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+
+  const cleanupEmailLogsMutation = useMutation({
+    mutationFn: reportsApi.cleanupEmailLogs,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports', 'email-logs'] });
+    },
+  });
+
+  const sendAllReportsMutation = useMutation({
+    mutationFn: () => reportsApi.sendAllReports(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports', 'email-logs'] });
     },
   });
 
@@ -130,7 +162,7 @@ export function AdminPage() {
 
         {/* Tabs */}
         <div className="flex space-x-2 border-b">
-          {['users', 'sources', 'sync'].map((tab) => (
+          {['users', 'sources', 'sync', 'emails'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -319,6 +351,85 @@ export function AdminPage() {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Emails Tab */}
+        {activeTab === 'emails' && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email Report Logs
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => cleanupEmailLogsMutation.mutate()}
+                  disabled={cleanupEmailLogsMutation.isPending}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Cleanup Old
+                </Button>
+                <Button
+                  onClick={() => sendAllReportsMutation.mutate()}
+                  disabled={sendAllReportsMutation.isPending}
+                >
+                  <Mail className={`mr-2 h-4 w-4 ${sendAllReportsMutation.isPending ? 'animate-pulse' : ''}`} />
+                  Send All Reports
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {emailLogs?.logs?.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No email logs yet. Reports will be logged here after sending.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sent At</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Report Date</TableHead>
+                      <TableHead>Recipient</TableHead>
+                      <TableHead>Issues</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {emailLogs?.logs?.map((log: EmailLog) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-sm">
+                          {formatDateTime(log.sent_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={log.report_type === 'operations' ? 'default' : 'secondary'}>
+                            {log.report_type === 'operations' ? 'Operations' : 'Team Lead'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{log.report_date}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{log.recipient_name || '-'}</span>
+                            <span className="text-xs text-muted-foreground">{log.recipient_email}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{log.issues_count}</TableCell>
+                        <TableCell>
+                          <Badge variant={log.status === 'sent' ? 'success' : 'danger'}>
+                            {log.status}
+                          </Badge>
+                          {log.error_message && (
+                            <p className="text-xs text-red-500 mt-1">{log.error_message}</p>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         )}

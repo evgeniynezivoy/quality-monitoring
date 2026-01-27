@@ -77,6 +77,20 @@ CREATE TABLE refresh_tokens (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Email report logs
+CREATE TABLE email_logs (
+    id SERIAL PRIMARY KEY,
+    report_type VARCHAR(50) NOT NULL,  -- 'operations', 'team_lead'
+    report_date DATE NOT NULL,
+    recipient_email VARCHAR(255) NOT NULL,
+    recipient_name VARCHAR(255),
+    subject VARCHAR(500) NOT NULL,
+    issues_count INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'sent' CHECK (status IN ('sent', 'failed')),
+    error_message TEXT,
+    sent_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes
 CREATE INDEX idx_issues_date ON issues(issue_date DESC);
 CREATE INDEX idx_issues_source ON issues(source_id);
@@ -90,6 +104,8 @@ CREATE INDEX idx_sync_logs_source ON sync_logs(source_id);
 CREATE INDEX idx_sync_logs_status ON sync_logs(status);
 CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at);
+CREATE INDEX idx_email_logs_sent_at ON email_logs(sent_at DESC);
+CREATE INDEX idx_email_logs_report_type ON email_logs(report_type);
 
 -- Trigger for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()

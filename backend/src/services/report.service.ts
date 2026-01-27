@@ -435,23 +435,36 @@ export async function sendDailyReport(
   recipients: string[],
   date?: string
 ): Promise<{ success: boolean; message: string; data?: DailyReportData }> {
+  const data = await getDailyReportData(date);
+  const html = generateReportHtml(data);
+
+  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+
+  const subject = `[OPERATIONS] Daily Issues Summary - ${formattedDate} (${data.totalIssues} issues)`;
+
   try {
-    const data = await getDailyReportData(date);
-    const html = generateReportHtml(data);
-
-    const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-    });
-
-    const subject = `[OPERATIONS] Daily Issues Summary - ${formattedDate} (${data.totalIssues} issues)`;
-
     await sendEmail({
       to: recipients,
       subject,
       html,
     });
+
+    // Log each recipient
+    for (const email of recipients) {
+      await logEmailSent({
+        reportType: 'operations',
+        reportDate: data.date,
+        recipientEmail: email,
+        recipientName: 'Operations Team',
+        subject,
+        issuesCount: data.totalIssues,
+        status: 'sent',
+      });
+    }
 
     return {
       success: true,
@@ -461,6 +474,21 @@ export async function sendDailyReport(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to send daily report:', error);
+
+    // Log failed attempt
+    for (const email of recipients) {
+      await logEmailSent({
+        reportType: 'operations',
+        reportDate: data.date,
+        recipientEmail: email,
+        recipientName: 'Operations Team',
+        subject,
+        issuesCount: data.totalIssues,
+        status: 'failed',
+        errorMessage,
+      });
+    }
+
     return {
       success: false,
       message: errorMessage,
@@ -473,30 +501,41 @@ export async function sendTeamLeadReport(
   teamLeadId: number,
   date?: string
 ): Promise<{ success: boolean; message: string; teamLead?: string; issueCount?: number }> {
+  const data = await getTeamLeadReportData(teamLeadId, date);
+
+  if (!data) {
+    return {
+      success: true,
+      message: 'No issues for this team lead',
+    };
+  }
+
+  const html = generateTeamLeadReportHtml(data);
+
+  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+
+  const subject = `[YOUR TEAM] Daily Issues Report - ${formattedDate} (${data.totalIssues} issues)`;
+
   try {
-    const data = await getTeamLeadReportData(teamLeadId, date);
-
-    if (!data) {
-      return {
-        success: true,
-        message: 'No issues for this team lead',
-      };
-    }
-
-    const html = generateTeamLeadReportHtml(data);
-
-    const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-    });
-
-    const subject = `[YOUR TEAM] Daily Issues Report - ${formattedDate} (${data.totalIssues} issues)`;
-
     await sendEmail({
       to: [data.teamLeadEmail],
       subject,
       html,
+    });
+
+    // Log sent email
+    await logEmailSent({
+      reportType: 'team_lead',
+      reportDate: data.date,
+      recipientEmail: data.teamLeadEmail,
+      recipientName: data.teamLeadName,
+      subject,
+      issuesCount: data.totalIssues,
+      status: 'sent',
     });
 
     return {
@@ -508,6 +547,19 @@ export async function sendTeamLeadReport(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to send team lead report:', error);
+
+    // Log failed attempt
+    await logEmailSent({
+      reportType: 'team_lead',
+      reportDate: data.date,
+      recipientEmail: data.teamLeadEmail,
+      recipientName: data.teamLeadName,
+      subject,
+      issuesCount: data.totalIssues,
+      status: 'failed',
+      errorMessage,
+    });
+
     return {
       success: false,
       message: errorMessage,
@@ -559,4 +611,78 @@ export function getOperationsTeam(): string[] {
 // Legacy function for backwards compatibility
 export async function getReportRecipients(): Promise<string[]> {
   return OPERATIONS_TEAM;
+}
+
+// Log sent email to database
+async function logEmailSent(params: {
+  reportType: 'operations' | 'team_lead';
+  reportDate: string;
+  recipientEmail: string;
+  recipientName?: string;
+  subject: string;
+  issuesCount: number;
+  status: 'sent' | 'failed';
+  errorMessage?: string;
+}): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO email_logs (report_type, report_date, recipient_email, recipient_name, subject, issues_count, status, error_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        params.reportType,
+        params.reportDate,
+        params.recipientEmail,
+        params.recipientName || null,
+        params.subject,
+        params.issuesCount,
+        params.status,
+        params.errorMessage || null,
+      ]
+    );
+  } catch (error) {
+    console.error('Failed to log email:', error);
+  }
+}
+
+// Get email logs
+export async function getEmailLogs(limit = 100): Promise<{
+  id: number;
+  report_type: string;
+  report_date: string;
+  recipient_email: string;
+  recipient_name: string | null;
+  subject: string;
+  issues_count: number;
+  status: string;
+  error_message: string | null;
+  sent_at: string;
+}[]> {
+  const result = await query<{
+    id: number;
+    report_type: string;
+    report_date: string;
+    recipient_email: string;
+    recipient_name: string | null;
+    subject: string;
+    issues_count: number;
+    status: string;
+    error_message: string | null;
+    sent_at: string;
+  }>(
+    `SELECT id, report_type, report_date::text, recipient_email, recipient_name,
+            subject, issues_count, status, error_message, sent_at::text
+     FROM email_logs
+     ORDER BY sent_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
+// Cleanup old email logs (older than 14 days)
+export async function cleanupOldEmailLogs(): Promise<number> {
+  const result = await query(
+    `DELETE FROM email_logs WHERE sent_at < NOW() - INTERVAL '14 days' RETURNING id`
+  );
+  return result.rowCount || 0;
 }
