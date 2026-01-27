@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { syncAllSources, syncSource, getSyncLogs, getSyncStatus, getSources } from '../services/sync.service.js';
+import { syncTeamRoster, getTeamStructure } from '../services/team-sync.service.js';
 
 export async function syncRoutes(fastify: FastifyInstance) {
   // Trigger sync for all sources (admin only)
@@ -85,6 +86,37 @@ export async function syncRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const sources = await getSources();
       return reply.send({ sources });
+    }
+  );
+
+  // Trigger team roster sync (admin only)
+  fastify.post(
+    '/api/sync/team',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const result = await syncTeamRoster();
+        return reply.send({
+          message: 'Team roster sync completed',
+          ...result,
+        });
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // Get team structure
+  fastify.get(
+    '/api/sync/team',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const structure = await getTeamStructure();
+        return reply.send({ teams: structure });
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message });
+      }
     }
   );
 }
