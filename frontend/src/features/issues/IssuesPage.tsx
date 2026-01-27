@@ -122,7 +122,6 @@ export function IssuesPage() {
     }
   }, [groupedIssues.length]);
 
-  const isTeamLead = user?.role === 'team_lead';
   const isAdmin = user?.role === 'admin';
 
   return (
