@@ -34,7 +34,15 @@ export async function syncTeamRoster(): Promise<TeamSyncResult> {
   try {
     // Fetch team roster from Google Sheets
     const data = await fetchSheetData(TEAM_ROSTER_SHEET_ID, TEAM_ROSTER_GID);
-    const members = data.rows as TeamMember[];
+    const members: TeamMember[] = data.rows.map((row) => ({
+      cc_email: row.cc_email || '',
+      cc: row.cc || '',
+      cc_full_name: row.cc_full_name || '',
+      first_name: row.first_name || '',
+      last_name: row.last_name || '',
+      cc_tl: row.cc_tl || '',
+      tl_email: row.tl_email || '',
+    }));
 
     if (members.length === 0) {
       result.errors.push('No team members found in sheet');
