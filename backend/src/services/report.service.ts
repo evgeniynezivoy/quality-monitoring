@@ -2,7 +2,8 @@ import { query } from '../config/database.js';
 import { sendEmail } from '../config/email.js';
 
 interface DailyReportData {
-  date: string;
+  date: string;  // For display (can be range like "01/24 - 01/26/2026")
+  dates: string[];  // Actual dates included
   totalIssues: number;
   bySource: { source: string; count: number }[];
   byTeamLead: { teamLead: string; count: number }[];
@@ -14,11 +15,13 @@ interface DailyReportData {
     comment: string;
     source: string;
     issueRate: number | null;
+    issueDate: string;
   }[];
 }
 
 interface TeamLeadReportData {
-  date: string;
+  date: string;  // For display
+  dates: string[];  // Actual dates included
   teamLeadName: string;
   teamLeadEmail: string;
   totalIssues: number;
@@ -30,6 +33,7 @@ interface TeamLeadReportData {
     comment: string;
     source: string;
     issueRate: number | null;
+    issueDate: string;
   }[];
 }
 
@@ -39,6 +43,59 @@ const OPERATIONS_TEAM = [
   'pytonia@infuseua.com',
   'markovych@infuseua.com',
 ];
+
+// Check if today is a weekend (should skip sending)
+export function isWeekend(): boolean {
+  const today = new Date();
+  const day = today.getDay(); // 0 = Sunday, 6 = Saturday
+  return day === 0 || day === 6;
+}
+
+// Get dates to include in report based on current day
+// Monday: Fri + Sat + Sun, Other days: yesterday
+export function getReportDates(): string[] {
+  const today = new Date();
+  const day = today.getDay(); // 0 = Sunday, 1 = Monday, ... 6 = Saturday
+  const dates: string[] = [];
+
+  if (day === 1) {
+    // Monday - include Friday, Saturday, Sunday
+    for (let i = 3; i >= 1; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+  } else {
+    // Tuesday-Friday - just yesterday
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    dates.push(yesterday.toISOString().split('T')[0]);
+  }
+
+  return dates;
+}
+
+// Format date range for display
+export function formatDateRange(dates: string[]): string {
+  if (dates.length === 1) {
+    return new Date(dates[0]).toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    });
+  }
+  // Multiple dates - show range
+  const first = new Date(dates[0]).toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const last = new Date(dates[dates.length - 1]).toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+  return `${first} - ${last}`;
+}
 
 // Google Sheets links for sources
 const SOURCE_LINKS: Record<string, string> = {
@@ -50,22 +107,31 @@ const SOURCE_LINKS: Record<string, string> = {
 };
 
 // Get report data for Operations Team (all issues)
-export async function getDailyReportData(date?: string): Promise<DailyReportData> {
-  const reportDate = date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+// Accepts single date string or array of dates
+export async function getDailyReportData(dates?: string | string[]): Promise<DailyReportData> {
+  // Normalize to array
+  let reportDates: string[];
+  if (!dates) {
+    reportDates = [new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]];
+  } else if (typeof dates === 'string') {
+    reportDates = [dates];
+  } else {
+    reportDates = dates;
+  }
 
   const totalResult = await query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM issues WHERE issue_date = $1`,
-    [reportDate]
+    `SELECT COUNT(*) as count FROM issues WHERE issue_date = ANY($1)`,
+    [reportDates]
   );
 
   const bySourceResult = await query<{ source: string; count: string }>(
     `SELECT COALESCE(s.name, 'Unknown') as source, COUNT(*) as count
      FROM issues i
      LEFT JOIN issue_sources s ON i.source_id = s.id
-     WHERE i.issue_date = $1
+     WHERE i.issue_date = ANY($1)
      GROUP BY s.name
      ORDER BY count DESC`,
-    [reportDate]
+    [reportDates]
   );
 
   const byTeamLeadResult = await query<{ team_lead: string; count: string }>(
@@ -73,10 +139,10 @@ export async function getDailyReportData(date?: string): Promise<DailyReportData
      FROM issues i
      LEFT JOIN users u ON i.responsible_cc_id = u.id
      LEFT JOIN users tl ON u.team_lead_id = tl.id
-     WHERE i.issue_date = $1
+     WHERE i.issue_date = ANY($1)
      GROUP BY tl.full_name
      ORDER BY count DESC`,
-    [reportDate]
+    [reportDates]
   );
 
   const issuesResult = await query<{
@@ -87,6 +153,7 @@ export async function getDailyReportData(date?: string): Promise<DailyReportData
     comment: string;
     source: string;
     issue_rate: number | null;
+    issue_date: string;
   }>(
     `SELECT
        COALESCE(tl.full_name, 'N/A') as team_lead,
@@ -95,18 +162,20 @@ export async function getDailyReportData(date?: string): Promise<DailyReportData
        COALESCE(i.issue_type, '-') as issue_type,
        COALESCE(i.comment, '-') as comment,
        COALESCE(s.name, 'Unknown') as source,
-       i.issue_rate
+       i.issue_rate,
+       i.issue_date::text as issue_date
      FROM issues i
      LEFT JOIN users u ON i.responsible_cc_id = u.id
      LEFT JOIN users tl ON u.team_lead_id = tl.id
      LEFT JOIN issue_sources s ON i.source_id = s.id
-     WHERE i.issue_date = $1
-     ORDER BY s.name, tl.full_name, u.full_name`,
-    [reportDate]
+     WHERE i.issue_date = ANY($1)
+     ORDER BY i.issue_date, s.name, tl.full_name, u.full_name`,
+    [reportDates]
   );
 
   return {
-    date: reportDate,
+    date: formatDateRange(reportDates),
+    dates: reportDates,
     totalIssues: parseInt(totalResult.rows[0]?.count || '0', 10),
     bySource: bySourceResult.rows.map(r => ({
       source: r.source,
@@ -124,13 +193,23 @@ export async function getDailyReportData(date?: string): Promise<DailyReportData
       comment: r.comment,
       source: r.source,
       issueRate: r.issue_rate,
+      issueDate: r.issue_date,
     })),
   };
 }
 
 // Get report data for a specific Team Lead
-export async function getTeamLeadReportData(teamLeadId: number, date?: string): Promise<TeamLeadReportData | null> {
-  const reportDate = date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+// Accepts single date string or array of dates
+export async function getTeamLeadReportData(teamLeadId: number, dates?: string | string[]): Promise<TeamLeadReportData | null> {
+  // Normalize to array
+  let reportDates: string[];
+  if (!dates) {
+    reportDates = [new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]];
+  } else if (typeof dates === 'string') {
+    reportDates = [dates];
+  } else {
+    reportDates = dates;
+  }
 
   // Get team lead info
   const teamLeadResult = await query<{ full_name: string; email: string }>(
@@ -150,6 +229,7 @@ export async function getTeamLeadReportData(teamLeadId: number, date?: string): 
     comment: string;
     source: string;
     issue_rate: number | null;
+    issue_date: string;
   }>(
     `SELECT
        COALESCE(u.full_name, i.responsible_cc_name, 'Unknown') as team_member,
@@ -157,14 +237,15 @@ export async function getTeamLeadReportData(teamLeadId: number, date?: string): 
        COALESCE(i.issue_type, '-') as issue_type,
        COALESCE(i.comment, '-') as comment,
        COALESCE(s.name, 'Unknown') as source,
-       i.issue_rate
+       i.issue_rate,
+       i.issue_date::text as issue_date
      FROM issues i
      LEFT JOIN users u ON i.responsible_cc_id = u.id
      LEFT JOIN issue_sources s ON i.source_id = s.id
-     WHERE i.issue_date = $1
+     WHERE i.issue_date = ANY($1)
        AND (u.team_lead_id = $2 OR i.responsible_cc_id = $2)
-     ORDER BY s.name, u.full_name`,
-    [reportDate, teamLeadId]
+     ORDER BY i.issue_date, s.name, u.full_name`,
+    [reportDates, teamLeadId]
   );
 
   if (issuesResult.rows.length === 0) return null;
@@ -176,7 +257,8 @@ export async function getTeamLeadReportData(teamLeadId: number, date?: string): 
   });
 
   return {
-    date: reportDate,
+    date: formatDateRange(reportDates),
+    dates: reportDates,
     teamLeadName: teamLead.full_name,
     teamLeadEmail: teamLead.email,
     totalIssues: issuesResult.rows.length,
@@ -188,6 +270,7 @@ export async function getTeamLeadReportData(teamLeadId: number, date?: string): 
       comment: r.comment,
       source: r.source,
       issueRate: r.issue_rate,
+      issueDate: r.issue_date,
     })),
   };
 }
@@ -222,11 +305,8 @@ function getRateColor(rate: number | null): string {
 
 // Generate HTML for Operations Team report
 export function generateReportHtml(data: DailyReportData): string {
-  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  });
+  // data.date is already formatted (e.g., "01/24/2026" or "01/24 - 01/26/2026")
+  const formattedDate = data.date;
 
   const issuesBySourceHtml = data.bySource
     .map(s => `<li>${s.source} Report: ${s.count} issue${s.count !== 1 ? 's' : ''}</li>`)
@@ -339,11 +419,8 @@ export function generateReportHtml(data: DailyReportData): string {
 
 // Generate HTML for Team Lead report
 export function generateTeamLeadReportHtml(data: TeamLeadReportData): string {
-  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  });
+  // data.date is already formatted (e.g., "01/24/2026" or "01/24 - 01/26/2026")
+  const formattedDate = data.date;
 
   const issuesBySourceHtml = data.bySource
     .map(s => `<li>${s.source}: ${s.count} issue${s.count !== 1 ? 's' : ''}</li>`)
@@ -433,18 +510,13 @@ export function generateTeamLeadReportHtml(data: TeamLeadReportData): string {
 // Send report to Operations Team
 export async function sendDailyReport(
   recipients: string[],
-  date?: string
+  dates?: string | string[]
 ): Promise<{ success: boolean; message: string; data?: DailyReportData }> {
-  const data = await getDailyReportData(date);
+  const data = await getDailyReportData(dates);
   const html = generateReportHtml(data);
 
-  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  });
-
-  const subject = `[OPERATIONS] Daily Issues Summary - ${formattedDate} (${data.totalIssues} issues)`;
+  // data.date is already formatted (e.g., "01/24/2026" or "01/24 - 01/26/2026")
+  const subject = `[OPERATIONS] Daily Issues Summary - ${data.date} (${data.totalIssues} issues)`;
 
   try {
     await sendEmail({
@@ -453,11 +525,11 @@ export async function sendDailyReport(
       html,
     });
 
-    // Log each recipient
+    // Log each recipient (use first date for logging)
     for (const email of recipients) {
       await logEmailSent({
         reportType: 'operations',
-        reportDate: data.date,
+        reportDate: data.dates[0],
         recipientEmail: email,
         recipientName: 'Operations Team',
         subject,
@@ -475,11 +547,11 @@ export async function sendDailyReport(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to send daily report:', error);
 
-    // Log failed attempt
+    // Log failed attempt (use first date for logging)
     for (const email of recipients) {
       await logEmailSent({
         reportType: 'operations',
-        reportDate: data.date,
+        reportDate: data.dates[0],
         recipientEmail: email,
         recipientName: 'Operations Team',
         subject,
@@ -499,9 +571,9 @@ export async function sendDailyReport(
 // Send report to a specific Team Lead
 export async function sendTeamLeadReport(
   teamLeadId: number,
-  date?: string
+  dates?: string | string[]
 ): Promise<{ success: boolean; message: string; teamLead?: string; issueCount?: number }> {
-  const data = await getTeamLeadReportData(teamLeadId, date);
+  const data = await getTeamLeadReportData(teamLeadId, dates);
 
   if (!data) {
     return {
@@ -512,13 +584,8 @@ export async function sendTeamLeadReport(
 
   const html = generateTeamLeadReportHtml(data);
 
-  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  });
-
-  const subject = `[YOUR TEAM] Daily Issues Report - ${formattedDate} (${data.totalIssues} issues)`;
+  // data.date is already formatted (e.g., "01/24/2026" or "01/24 - 01/26/2026")
+  const subject = `[YOUR TEAM] Daily Issues Report - ${data.date} (${data.totalIssues} issues)`;
 
   try {
     await sendEmail({
@@ -527,10 +594,10 @@ export async function sendTeamLeadReport(
       html,
     });
 
-    // Log sent email
+    // Log sent email (use first date for logging)
     await logEmailSent({
       reportType: 'team_lead',
-      reportDate: data.date,
+      reportDate: data.dates[0],
       recipientEmail: data.teamLeadEmail,
       recipientName: data.teamLeadName,
       subject,
@@ -548,10 +615,10 @@ export async function sendTeamLeadReport(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to send team lead report:', error);
 
-    // Log failed attempt
+    // Log failed attempt (use first date for logging)
     await logEmailSent({
       reportType: 'team_lead',
-      reportDate: data.date,
+      reportDate: data.dates[0],
       recipientEmail: data.teamLeadEmail,
       recipientName: data.teamLeadName,
       subject,
@@ -568,20 +635,38 @@ export async function sendTeamLeadReport(
 }
 
 // Send all daily reports (Operations + all Team Leads)
-export async function sendAllDailyReports(date?: string): Promise<{
+export async function sendAllDailyReports(date?: string | string[]): Promise<{
   operationsReport: { success: boolean; message: string };
   teamLeadReports: { teamLead: string; success: boolean; message: string; issueCount?: number }[];
+  skipped?: boolean;
+  skipReason?: string;
 }> {
   const results: {
     operationsReport: { success: boolean; message: string };
     teamLeadReports: { teamLead: string; success: boolean; message: string; issueCount?: number }[];
+    skipped?: boolean;
+    skipReason?: string;
   } = {
     operationsReport: { success: false, message: '' },
     teamLeadReports: [],
   };
 
+  // If no date specified, check if we should skip (weekend)
+  if (!date && isWeekend()) {
+    const today = new Date();
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][today.getDay()];
+    console.log(`Skipping daily reports - today is ${dayName}`);
+    results.skipped = true;
+    results.skipReason = `Today is ${dayName} - reports are sent on weekdays only`;
+    results.operationsReport = { success: true, message: 'Skipped (weekend)' };
+    return results;
+  }
+
+  // Get dates to report on (if not specified)
+  const reportDates = date || getReportDates();
+
   // Send Operations Team report
-  const opsResult = await sendDailyReport(OPERATIONS_TEAM, date);
+  const opsResult = await sendDailyReport(OPERATIONS_TEAM, reportDates);
   results.operationsReport = {
     success: opsResult.success,
     message: opsResult.message,
@@ -591,7 +676,7 @@ export async function sendAllDailyReports(date?: string): Promise<{
   const teamLeads = await getAllTeamLeads();
 
   for (const tl of teamLeads) {
-    const tlResult = await sendTeamLeadReport(tl.id, date);
+    const tlResult = await sendTeamLeadReport(tl.id, reportDates);
     results.teamLeadReports.push({
       teamLead: tl.full_name,
       success: tlResult.success,
