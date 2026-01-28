@@ -13,10 +13,6 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       const roleFilter = buildRoleWhereClause(request.user);
       const params = roleFilter.params;
 
-      const today = new Date().toISOString().split('T')[0];
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
       const [totalResult, todayResult, weekResult, monthResult, criticalResult] = await Promise.all([
         query<{ count: string }>(
           `SELECT COUNT(*) as count FROM issues i
@@ -27,20 +23,20 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         query<{ count: string }>(
           `SELECT COUNT(*) as count FROM issues i
            LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause} AND i.issue_date = $${params.length + 1}`,
-          [...params, today]
+           WHERE ${roleFilter.clause} AND i.issue_date = CURRENT_DATE`,
+          params
         ),
         query<{ count: string }>(
           `SELECT COUNT(*) as count FROM issues i
            LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause} AND i.issue_date >= $${params.length + 1}`,
-          [...params, weekAgo]
+           WHERE ${roleFilter.clause} AND i.issue_date >= CURRENT_DATE - INTERVAL '7 days'`,
+          params
         ),
         query<{ count: string }>(
           `SELECT COUNT(*) as count FROM issues i
            LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause} AND i.issue_date >= $${params.length + 1}`,
-          [...params, monthAgo]
+           WHERE ${roleFilter.clause} AND i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)`,
+          params
         ),
         query<{ count: string }>(
           `SELECT COUNT(*) as count FROM issues i
@@ -349,17 +345,18 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
            WHERE ${roleFilter.clause}`,
           params
         ),
-        // Top teams this month for insights
-        query<{ team: string; count: string; top_issue_type: string }>(
+        // Top team leads this month for insights
+        query<{ team_lead: string; count: string; top_issue_type: string }>(
           `SELECT
-             COALESCE(u.team, 'Unknown') as team,
+             COALESCE(tl.full_name, 'Unassigned') as team_lead,
              COUNT(*) as count,
              MODE() WITHIN GROUP (ORDER BY i.issue_type) as top_issue_type
            FROM issues i
            LEFT JOIN users u ON i.responsible_cc_id = u.id
+           LEFT JOIN users tl ON u.team_lead_id = tl.id
            WHERE ${roleFilter.clause}
              AND i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)
-           GROUP BY COALESCE(u.team, 'Unknown')
+           GROUP BY COALESCE(tl.full_name, 'Unassigned')
            ORDER BY count DESC
            LIMIT 3`,
           params
@@ -393,14 +390,14 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       // Generate insights
       const insights: string[] = [];
 
-      const topTeams = topTeamsResult.rows;
-      if (topTeams.length > 0 && topTeams[0].team !== 'Unknown') {
-        const topTeam = topTeams[0];
+      const topTeamLeads = topTeamsResult.rows;
+      if (topTeamLeads.length > 0 && topTeamLeads[0].team_lead !== 'Unassigned') {
+        const topLead = topTeamLeads[0];
         // Only add insight if we have a valid issue type (not empty or "-")
-        const issueInfo = topTeam.top_issue_type && topTeam.top_issue_type !== '-' && topTeam.top_issue_type.trim() !== ''
-          ? `, mainly in "${topTeam.top_issue_type}"`
+        const issueInfo = topLead.top_issue_type && topLead.top_issue_type !== '-' && topLead.top_issue_type.trim() !== ''
+          ? `, mainly "${topLead.top_issue_type}"`
           : '';
-        insights.push(`${topTeam.team} team leads with ${topTeam.count} issues this month${issueInfo}`);
+        insights.push(`${topLead.team_lead}'s team leads with ${topLead.count} issues this month${issueInfo}`);
       }
 
       if (monthChange > 20) {
@@ -444,8 +441,8 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           critical_change_percent: criticalChange,
         },
         insights,
-        top_teams: topTeams.map(t => ({
-          team: t.team,
+        top_teams: topTeamLeads.map(t => ({
+          team_lead: t.team_lead,
           count: parseInt(t.count, 10),
           top_issue: t.top_issue_type,
         })),
