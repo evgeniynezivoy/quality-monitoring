@@ -15,6 +15,8 @@ import {
   Search,
   RotateCcw,
   Package,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -176,65 +178,80 @@ function TeamCard({ team }: { team: TeamAnalytics }) {
   );
 }
 
-// CC Table Row Component
-function CCTableRow({ cc, rank }: { cc: CCAnalytics; rank: number }) {
+// Period type
+type Period = 'week' | 'month' | 'quarter';
+
+// CC Card Component
+function CCCard({ cc, period }: { cc: CCAnalytics; period: Period }) {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const statusConfig = {
-    improving: { bg: 'bg-emerald-100', text: 'text-emerald-700', icon: TrendingDown, label: 'Improving' },
-    declining: { bg: 'bg-rose-100', text: 'text-rose-700', icon: TrendingUp, label: 'Declining' },
-    stable: { bg: 'bg-slate-100', text: 'text-slate-600', icon: Minus, label: 'Stable' },
+    improving: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: TrendingDown },
+    declining: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', icon: TrendingUp },
+    stable: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-600', icon: Minus },
   };
-
-  const status = statusConfig[cc.status];
-  const StatusIcon = status.icon;
 
   const avatarColors = [
     'bg-indigo-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500',
     'bg-purple-500', 'bg-cyan-500', 'bg-pink-500', 'bg-teal-500',
   ];
 
+  const status = statusConfig[cc.status];
+  const StatusIcon = status.icon;
+
+  // Get values based on period
+  const currentValue = period === 'week' ? cc.this_week : cc.this_month;
+  const previousValue = period === 'week' ? cc.last_week : cc.last_month;
+  const trend = period === 'week' ? cc.week_trend : cc.month_trend;
+
+  const periodLabels = {
+    week: { current: 'This Week', previous: 'Last Week' },
+    month: { current: 'This Month', previous: 'Last Month' },
+    quarter: { current: 'This Quarter', previous: 'Last Quarter' },
+  };
+
   return (
-    <tr className="hover:bg-gray-50 transition-colors">
-      <td className="px-4 py-4">
-        <span className="text-sm font-medium text-gray-400">#{rank}</span>
-      </td>
-      <td className="px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full ${avatarColors[rank % avatarColors.length]} flex items-center justify-center text-white text-sm font-medium shadow-sm`}>
+    <div className={`${status.bg} ${status.border} border rounded-xl p-4 hover:shadow-md transition-all`}>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className={`w-8 h-8 rounded-full ${avatarColors[cc.cc_id % avatarColors.length]} flex items-center justify-center text-white text-xs font-medium`}>
             {getInitials(cc.cc_name)}
           </div>
           <div>
-            <p className="font-medium text-gray-900">{cc.cc_name}</p>
-            <p className="text-xs text-gray-500">{cc.team} • {cc.team_lead}</p>
+            <p className="font-medium text-gray-900 text-sm leading-tight">{cc.cc_name}</p>
+            <p className="text-xs text-gray-500">{cc.team}</p>
           </div>
         </div>
-      </td>
-      <td className="px-4 py-4 text-center">
-        <span className="text-lg font-semibold text-gray-900">{cc.total_issues}</span>
-      </td>
-      <td className="px-4 py-4 text-center">
-        <div className="flex flex-col items-center">
-          <span className="text-lg font-semibold text-gray-900">{cc.this_week}</span>
-          <span className="text-xs text-gray-400">vs {cc.last_week}</span>
-        </div>
-      </td>
-      <td className="px-4 py-4 text-center">
-        <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}>
-          <StatusIcon className="w-3.5 h-3.5" />
+        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${status.bg} ${status.text}`}>
+          <StatusIcon className="w-3 h-3" />
           <span className="text-xs font-medium">
-            {cc.week_trend > 0 ? '+' : ''}{cc.week_trend}%
+            {trend > 0 ? '+' : ''}{trend}%
           </span>
         </div>
-      </td>
-      <td className="px-4 py-4">
-        <div className="flex flex-wrap gap-1">
-          {cc.sources && cc.sources.length > 0 ? cc.sources.map(source => (
+      </div>
+
+      {/* Stats */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-2xl font-bold text-gray-900">{currentValue}</p>
+          <p className="text-xs text-gray-500">{periodLabels[period].current}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-semibold text-gray-400">{previousValue}</p>
+          <p className="text-xs text-gray-400">{periodLabels[period].previous}</p>
+        </div>
+      </div>
+
+      {/* Sources */}
+      {cc.sources && cc.sources.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-gray-200/50">
+          {cc.sources.map(source => (
             <span
               key={source}
-              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                 source === 'LV' ? 'bg-blue-100 text-blue-700' :
                 source === 'CS' ? 'bg-purple-100 text-purple-700' :
                 source === 'Block' ? 'bg-orange-100 text-orange-700' :
@@ -245,18 +262,10 @@ function CCTableRow({ cc, rank }: { cc: CCAnalytics; rank: number }) {
             >
               {source}
             </span>
-          )) : (
-            <span className="text-gray-400 text-xs">-</span>
-          )}
+          ))}
         </div>
-      </td>
-      <td className="px-4 py-4">
-        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${status.bg} ${status.text}`}>
-          <StatusIcon className="w-3.5 h-3.5" />
-          {status.label}
-        </span>
-      </td>
-    </tr>
+      )}
+    </div>
   );
 }
 
@@ -303,7 +312,9 @@ export function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('issues');
   const [searchTerm, setSearchTerm] = useState('');
   const [teamFilter, setTeamFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [period, setPeriod] = useState<Period>('week');
+  const [showAllCC, setShowAllCC] = useState(false);
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['dashboard', 'overview'],
@@ -508,77 +519,95 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* CC Analytics Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">CC Performance Analytics</h2>
-                <p className="text-sm text-gray-500">Individual performance with trends</p>
+        {/* CC Performance Cards */}
+        <div className="space-y-4">
+          {/* Header with filters */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">CC Performance</h2>
+              <p className="text-sm text-gray-500">
+                {filteredCCAnalytics.length} people • sorted by issues count
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Period Selector */}
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                {(['week', 'month', 'quarter'] as Period[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      period === p
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Quarter'}
+                  </button>
+                ))}
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search CC..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-48"
-                  />
-                </div>
-                {/* Team Filter */}
-                <select
-                  value={teamFilter}
-                  onChange={(e) => setTeamFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="all">All Teams</option>
-                  {teams.map(team => (
-                    <option key={team} value={team}>{team}</option>
-                  ))}
-                </select>
-                {/* Status Filter */}
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="active">↑↓ Improving & Declining</option>
-                  <option value="all">All Status</option>
-                  <option value="improving">↓ Improving only</option>
-                  <option value="declining">↑ Declining only</option>
-                  <option value="stable">→ Stable only</option>
-                </select>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-40"
+                />
               </div>
+              {/* Team Filter */}
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="all">All Teams</option>
+                {teams.map(team => (
+                  <option key={team} value={team}>{team}</option>
+                ))}
+              </select>
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="all">All Status</option>
+                <option value="declining">↑ Declining</option>
+                <option value="improving">↓ Improving</option>
+                <option value="stable">→ Stable</option>
+              </select>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rank</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">CC Name</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">This Week</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Trend</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sources</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredCCAnalytics.slice(0, 50).map((cc, index) => (
-                  <CCTableRow key={cc.cc_id || index} cc={cc} rank={index + 1} />
-                ))}
-              </tbody>
-            </table>
+          {/* Cards Grid */}
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {(showAllCC ? filteredCCAnalytics : filteredCCAnalytics.slice(0, 10)).map((cc) => (
+              <CCCard key={cc.cc_id} cc={cc} period={period} />
+            ))}
           </div>
 
-          {filteredCCAnalytics.length > 50 && (
-            <div className="p-4 text-center text-sm text-gray-500 border-t border-gray-100">
-              Showing 50 of {filteredCCAnalytics.length} CCs
+          {/* Show More/Less Button */}
+          {filteredCCAnalytics.length > 10 && (
+            <div className="text-center pt-2">
+              <button
+                onClick={() => setShowAllCC(!showAllCC)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {showAllCC ? (
+                  <>
+                    <ChevronUp className="w-4 h-4" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    Show All ({filteredCCAnalytics.length - 10} more)
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>
