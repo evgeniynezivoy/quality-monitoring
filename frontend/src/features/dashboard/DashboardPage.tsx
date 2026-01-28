@@ -9,7 +9,6 @@ import {
   Minus,
   Calendar,
   AlertTriangle,
-  Users,
   ArrowUpRight,
   ArrowDownRight,
   Search,
@@ -126,71 +125,73 @@ function StatCard({
   );
 }
 
-// Team Card Component
-function TeamCard({ team }: { team: TeamAnalytics }) {
-  const statusColors = {
-    improving: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    declining: 'bg-rose-100 text-rose-700 border-rose-200',
-    stable: 'bg-slate-100 text-slate-700 border-slate-200',
+// Team Lead Card Component (for aggregated team lead stats)
+function TeamLeadCard({
+  teamLead,
+  ccCount,
+  currentIssues,
+  previousIssues,
+  period,
+  onClick,
+  isSelected
+}: {
+  teamLead: string;
+  ccCount: number;
+  currentIssues: number;
+  previousIssues: number;
+  period: Period;
+  onClick: () => void;
+  isSelected: boolean;
+}) {
+  const status = calculateStatus(currentIssues, previousIssues);
+  const trend = calculateTrend(currentIssues, previousIssues);
+
+  const statusConfig = {
+    improving: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: TrendingDown },
+    declining: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', icon: TrendingUp },
+    stable: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-600', icon: Minus },
   };
 
-  const trendColors = {
-    improving: 'text-emerald-600',
-    declining: 'text-rose-600',
-    stable: 'text-slate-500',
+  const config = statusConfig[status];
+  const StatusIcon = config.icon;
+
+  const periodLabels = {
+    week: { current: 'This Week', previous: 'Last Week' },
+    month: { current: 'This Month', previous: 'Last Month' },
+    quarter: { current: 'This Quarter', previous: 'Last Quarter' },
   };
 
   return (
-    <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all">
-      <div className="flex items-start justify-between mb-4">
+    <button
+      onClick={onClick}
+      className={`w-full text-left ${config.bg} ${config.border} border rounded-xl p-4 hover:shadow-md transition-all ${
+        isSelected ? 'ring-2 ring-indigo-500' : ''
+      }`}
+    >
+      <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="font-semibold text-gray-900">{team.team}</h3>
-          <p className="text-sm text-gray-500">{team.team_lead}</p>
+          <p className="font-semibold text-gray-900">{teamLead}</p>
+          <p className="text-xs text-gray-500">{ccCount} team members</p>
         </div>
-        <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${statusColors[team.status]}`}>
-          {team.status === 'improving' ? '↓ Improving' : team.status === 'declining' ? '↑ Declining' : '→ Stable'}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <div>
-          <p className="text-2xl font-bold text-gray-900">{team.this_week}</p>
-          <p className="text-xs text-gray-500">This Week</p>
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-gray-400">{team.last_week}</p>
-          <p className="text-xs text-gray-500">Last Week</p>
-        </div>
-        <div className="text-right">
-          <p className={`text-2xl font-bold ${trendColors[team.status]}`}>
-            {team.week_trend > 0 ? '+' : ''}{team.week_trend}%
-          </p>
-          <p className="text-xs text-gray-500">Trend</p>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-600">{team.cc_count} CCs</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
-            <span className="text-sm text-gray-600">{team.critical_count} critical</span>
-          </div>
-        </div>
-        <div className="text-sm">
-          <span className="text-gray-500">Avg: </span>
-          <span className={`font-medium ${
-            (team.avg_rate || 0) >= 2.5 ? 'text-rose-600' :
-            (team.avg_rate || 0) >= 1.5 ? 'text-amber-600' : 'text-emerald-600'
-          }`}>
-            {team.avg_rate?.toFixed(1) || '-'}
+        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}>
+          <StatusIcon className="w-3 h-3" />
+          <span className="text-xs font-medium">
+            {trend > 0 ? '+' : ''}{trend}%
           </span>
         </div>
       </div>
-    </div>
+
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-2xl font-bold text-gray-900">{currentIssues}</p>
+          <p className="text-xs text-gray-500">{periodLabels[period].current}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-semibold text-gray-400">{previousIssues}</p>
+          <p className="text-xs text-gray-400">{periodLabels[period].previous}</p>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -343,7 +344,7 @@ function TabButton({
 export function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('issues');
   const [searchTerm, setSearchTerm] = useState('');
-  const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [selectedTeamLead, setSelectedTeamLead] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [period, setPeriod] = useState<Period>('week');
   const [showAllCC, setShowAllCC] = useState(false);
@@ -385,34 +386,62 @@ export function DashboardPage() {
   const teamAnalytics: TeamAnalytics[] = teamAnalyticsData?.team_analytics || [];
   const issueAnalytics: IssueAnalytics | null = issueAnalyticsData || null;
 
-  // Get unique teams for filter
-  const teams = [...new Set(ccAnalytics.map(cc => cc.team))].filter(t => t !== 'Unknown');
-
-  // Filter CC analytics with proper status calculation based on selected period
-  const filteredCCAnalytics = ccAnalytics.filter(cc => {
-    const matchesSearch = cc.cc_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          cc.team.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTeam = teamFilter === 'all' || cc.team === teamFilter;
-
-    // Get values based on selected period
-    const currentValue = period === 'week' ? cc.this_week : cc.this_month;
-    const previousValue = period === 'week' ? cc.last_week : cc.last_month;
-
-    // Calculate actual status based on selected period
-    const periodStatus = calculateStatus(currentValue, previousValue);
-
-    // Filter by status
-    let matchesStatus = true;
-    if (statusFilter !== 'all') {
-      matchesStatus = periodStatus === statusFilter;
+  // Aggregate data by team lead
+  const teamLeadStats = ccAnalytics.reduce((acc, cc) => {
+    const teamLead = cc.team_lead || 'Unassigned';
+    if (!acc[teamLead]) {
+      acc[teamLead] = {
+        teamLead,
+        ccCount: 0,
+        this_week: 0,
+        last_week: 0,
+        this_month: 0,
+        last_month: 0,
+        members: [] as CCAnalytics[],
+      };
     }
+    acc[teamLead].ccCount++;
+    acc[teamLead].this_week += cc.this_week;
+    acc[teamLead].last_week += cc.last_week;
+    acc[teamLead].this_month += cc.this_month;
+    acc[teamLead].last_month += cc.last_month;
+    acc[teamLead].members.push(cc);
+    return acc;
+  }, {} as Record<string, { teamLead: string; ccCount: number; this_week: number; last_week: number; this_month: number; last_month: number; members: CCAnalytics[] }>);
 
-    // Don't show people with 0 current issues UNLESS a specific team is selected
-    const hasCurrentIssues = currentValue > 0 || previousValue > 0;
-    const showZeroIssues = teamFilter !== 'all'; // Show all team members when team is selected
+  // Convert to array and sort by current period issues
+  const teamLeadList = Object.values(teamLeadStats)
+    .filter(tl => tl.teamLead !== 'N/A' && tl.teamLead !== 'Unassigned')
+    .sort((a, b) => {
+      const aValue = period === 'week' ? a.this_week : a.this_month;
+      const bValue = period === 'week' ? b.this_week : b.this_month;
+      return bValue - aValue;
+    });
 
-    return matchesSearch && matchesTeam && matchesStatus && (hasCurrentIssues || showZeroIssues);
-  });
+  // Get CCs for selected team lead
+  const selectedTeamLeadData = selectedTeamLead ? teamLeadStats[selectedTeamLead] : null;
+
+  // Filter CCs within selected team lead
+  const filteredCCAnalytics = selectedTeamLeadData
+    ? selectedTeamLeadData.members.filter(cc => {
+        const matchesSearch = cc.cc_name.toLowerCase().includes(searchTerm.toLowerCase());
+
+        // Get values based on selected period
+        const currentValue = period === 'week' ? cc.this_week : cc.this_month;
+        const previousValue = period === 'week' ? cc.last_week : cc.last_month;
+
+        // Calculate actual status based on selected period
+        const periodStatus = calculateStatus(currentValue, previousValue);
+
+        // Filter by status
+        let matchesStatus = true;
+        if (statusFilter !== 'all') {
+          matchesStatus = periodStatus === statusFilter;
+        }
+
+        return matchesSearch && matchesStatus;
+      })
+    : [];
 
   // Summary stats
   const improvingCount = ccAnalytics.filter(cc => cc.status === 'improving').length;
@@ -676,26 +705,17 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Team Performance */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Team Performance</h2>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {teamAnalytics.filter(t => t.team !== 'Unknown').map((team) => (
-              <TeamCard key={team.team} team={team} />
-            ))}
-          </div>
-        </div>
-
-        {/* CC Performance Cards */}
+        {/* Team Performance - Interactive Section */}
         <div className="space-y-4">
           {/* Header with filters */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">CC Performance</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Team Performance</h2>
               <p className="text-sm text-gray-500">
-                {filteredCCAnalytics.length} people • sorted by issues count
+                {selectedTeamLead
+                  ? `${selectedTeamLeadData?.ccCount || 0} team members in ${selectedTeamLead}'s team`
+                  : `${teamLeadList.length} team leads • click to see team details`
+                }
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -715,69 +735,106 @@ export function DashboardPage() {
                   </button>
                 ))}
               </div>
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-40"
+
+              {/* Back button when team lead is selected */}
+              {selectedTeamLead && (
+                <button
+                  onClick={() => {
+                    setSelectedTeamLead(null);
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                  }}
+                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                >
+                  ← Back to all teams
+                </button>
+              )}
+
+              {/* Search - only when team lead is selected */}
+              {selectedTeamLead && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search CC..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-40"
+                  />
+                </div>
+              )}
+
+              {/* Status Filter - only when team lead is selected */}
+              {selectedTeamLead && (
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="all">All Status</option>
+                  <option value="declining">↑ Declining</option>
+                  <option value="improving">↓ Improving</option>
+                  <option value="stable">→ Stable</option>
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Team Leads Grid (default view) */}
+          {!selectedTeamLead && (
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {teamLeadList.map((tl) => (
+                <TeamLeadCard
+                  key={tl.teamLead}
+                  teamLead={tl.teamLead}
+                  ccCount={tl.ccCount}
+                  currentIssues={period === 'week' ? tl.this_week : tl.this_month}
+                  previousIssues={period === 'week' ? tl.last_week : tl.last_month}
+                  period={period}
+                  onClick={() => setSelectedTeamLead(tl.teamLead)}
+                  isSelected={false}
                 />
-              </div>
-              {/* Team Filter */}
-              <select
-                value={teamFilter}
-                onChange={(e) => setTeamFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              >
-                <option value="all">All Teams</option>
-                {teams.map(team => (
-                  <option key={team} value={team}>{team}</option>
+              ))}
+            </div>
+          )}
+
+          {/* CC Cards Grid (when team lead is selected) */}
+          {selectedTeamLead && (
+            <>
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {(showAllCC ? filteredCCAnalytics : filteredCCAnalytics.slice(0, 10)).map((cc) => (
+                  <CCCard key={cc.cc_id} cc={cc} period={period} />
                 ))}
-              </select>
-              {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              >
-                <option value="all">All Status</option>
-                <option value="declining">↑ Declining</option>
-                <option value="improving">↓ Improving</option>
-                <option value="stable">→ Stable</option>
-              </select>
-            </div>
-          </div>
+              </div>
 
-          {/* Cards Grid */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {(showAllCC ? filteredCCAnalytics : filteredCCAnalytics.slice(0, 10)).map((cc) => (
-              <CCCard key={cc.cc_id} cc={cc} period={period} />
-            ))}
-          </div>
+              {filteredCCAnalytics.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No team members match the current filters
+                </div>
+              )}
 
-          {/* Show More/Less Button */}
-          {filteredCCAnalytics.length > 10 && (
-            <div className="text-center pt-2">
-              <button
-                onClick={() => setShowAllCC(!showAllCC)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                {showAllCC ? (
-                  <>
-                    <ChevronUp className="w-4 h-4" />
-                    Show Less
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-4 h-4" />
-                    Show All ({filteredCCAnalytics.length - 10} more)
-                  </>
-                )}
-              </button>
-            </div>
+              {/* Show More/Less Button */}
+              {filteredCCAnalytics.length > 10 && (
+                <div className="text-center pt-2">
+                  <button
+                    onClick={() => setShowAllCC(!showAllCC)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    {showAllCC ? (
+                      <>
+                        <ChevronUp className="w-4 h-4" />
+                        Show Less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4" />
+                        Show All ({filteredCCAnalytics.length - 10} more)
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
           </>
