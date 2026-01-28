@@ -238,6 +238,35 @@ Get team performance with trends.
 }
 ```
 
+### GET /api/dashboard/issue-analytics
+
+Get issue analytics with month comparison and insights.
+
+**Response (200):**
+```json
+{
+  "month_comparison": {
+    "this_month": 193,
+    "last_month": 245,
+    "trend": -21.2,
+    "status": "improving"
+  },
+  "by_team": [
+    {
+      "team_lead": "Viktoriia Rozhnova",
+      "this_month": 45,
+      "last_month": 52,
+      "trend": -13.5,
+      "top_issue_type": "Wrong info"
+    }
+  ],
+  "insights": [
+    "Viktoriia Rozhnova team shows improvement with 45 issues this month (-13.5%), mainly in \"Wrong info\"",
+    "Overall issues decreased by 21.2% compared to last month"
+  ]
+}
+```
+
 ---
 
 ## Issues Endpoints
@@ -544,6 +573,192 @@ Get system statistics. **Admin only.**
     "last_sync": "2026-01-26T10:30:00Z",
     "total_syncs_today": 144
   }
+}
+```
+
+---
+
+## Reports Endpoints
+
+### GET /api/reports/daily
+
+Get daily report data.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| date | string | today | Report date (YYYY-MM-DD) |
+
+**Response (200):**
+```json
+{
+  "date": "2026-01-27",
+  "total_issues": 15,
+  "issues_by_team": [
+    {
+      "team_lead": "Viktoriia Rozhnova",
+      "count": 5,
+      "issues": [...]
+    }
+  ]
+}
+```
+
+### GET /api/reports/daily/preview
+
+Preview daily report HTML.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| date | string | today | Report date (YYYY-MM-DD) |
+
+**Response (200):**
+```json
+{
+  "html": "<html>...</html>",
+  "subject": "Quality Report - 2026-01-27",
+  "issues_count": 15
+}
+```
+
+### POST /api/reports/daily/send
+
+Send daily report to specific recipients.
+
+**Request:**
+```json
+{
+  "recipients": ["email@example.com"],
+  "date": "2026-01-27"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "sent_to": ["email@example.com"],
+  "issues_count": 15
+}
+```
+
+### POST /api/reports/send-all
+
+Send all daily reports (operations + team leads). **Admin only.**
+
+**Request:**
+```json
+{
+  "date": "2026-01-27"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "operations_report": {
+    "sent": true,
+    "recipients": 2,
+    "issues_count": 15
+  },
+  "team_lead_reports": {
+    "sent": 5,
+    "skipped": 2,
+    "total": 7
+  }
+}
+```
+
+### GET /api/reports/test-connection
+
+Test SMTP connection.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 587
+}
+```
+
+### POST /api/reports/test-send
+
+Send test email.
+
+**Request:**
+```json
+{
+  "email": "test@example.com"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Test email sent to test@example.com"
+}
+```
+
+### GET /api/reports/recipients
+
+Get report recipients (Team Leads with emails).
+
+**Response (200):**
+```json
+{
+  "recipients": [
+    {
+      "id": 5,
+      "full_name": "Viktoriia Rozhnova",
+      "email": "v.rozhnova@example.com",
+      "team_members_count": 12
+    }
+  ]
+}
+```
+
+### GET /api/reports/email-logs
+
+Get email sending history.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| limit | number | 50 | Max results |
+
+**Response (200):**
+```json
+{
+  "logs": [
+    {
+      "id": 100,
+      "report_type": "team_lead",
+      "report_date": "2026-01-27",
+      "recipient_email": "v.rozhnova@example.com",
+      "recipient_name": "Viktoriia Rozhnova",
+      "subject": "Quality Report - 2026-01-27",
+      "issues_count": 5,
+      "status": "sent",
+      "error_message": null,
+      "sent_at": "2026-01-27T12:00:00Z"
+    }
+  ]
+}
+```
+
+### POST /api/reports/email-logs/cleanup
+
+Delete email logs older than 30 days. **Admin only.**
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "deleted_count": 150
 }
 ```
 

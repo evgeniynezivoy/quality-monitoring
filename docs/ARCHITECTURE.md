@@ -46,6 +46,9 @@ Quality Monitoring is a full-stack web application for tracking and analyzing qu
 │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  ┌──────────────┐   │
 │  │  users   │  │  issues  │  │issue_sources │  │  sync_logs   │   │
 │  └──────────┘  └──────────┘  └──────────────┘  └──────────────┘   │
+│  ┌──────────────┐                                                  │
+│  │  email_logs  │                                                  │
+│  └──────────────┘                                                  │
 └─────────────────────────────────────────────────────────────────────┘
                             │
                      ┌──────┴──────┐
@@ -101,6 +104,33 @@ Quality Monitoring is a full-stack web application for tracking and analyzing qu
 - **Team Lead**: `WHERE users.team_lead_id = :userId`
 - **CC**: `WHERE issues.responsible_cc_id = :userId`
 
+### 3. Email Reports Flow
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Cron Job  │────▶│Email Service│────▶│   SMTP      │────▶│ Team Leads  │
+│ (7 AM EST)  │     │             │     │  (Gmail)    │     │   Inbox     │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+                           │
+                           ▼
+                    ┌─────────────┐
+                    │ email_logs  │
+                    │  (audit)    │
+                    └─────────────┘
+```
+
+**Steps:**
+1. Cron triggers at 7 AM EST (12:00 UTC)
+2. Check if weekend (skip Saturday/Sunday)
+3. For Monday: include Friday + Saturday + Sunday issues
+4. Generate HTML reports per Team Lead
+5. Send via SMTP (Gmail)
+6. Log results to `email_logs` table
+
+**Report Types:**
+- **Operations Report**: All issues, sent to REPORT_RECIPIENTS
+- **Team Lead Reports**: Team-specific issues, sent to each Team Lead's email
+
 ## Component Architecture
 
 ### Frontend Components
@@ -145,7 +175,8 @@ src/routes/
 ├── dashboard.routes.ts        # /api/dashboard/* - Analytics endpoints
 ├── users.routes.ts            # /api/users/* - User listing
 ├── sync.routes.ts             # /api/sync/* - Sync control
-└── admin.routes.ts            # /api/admin/* - Admin operations
+├── admin.routes.ts            # /api/admin/* - Admin operations
+└── reports.routes.ts          # /api/reports/* - Email reports
 ```
 
 ## Security Architecture

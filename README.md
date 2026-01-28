@@ -78,19 +78,35 @@ quality-monitoring/
 | [Deployment](docs/DEPLOYMENT.md) | Docker, VPS setup, SSL, monitoring |
 | [Development](docs/DEVELOPMENT.md) | Local setup, coding guidelines, testing |
 | [Google Sheets Sync](docs/SYNC.md) | Data sources, column mappings, troubleshooting |
+| [MySQL Access Setup](docs/MySQL_Access_Setup_Guide.md) | Guide for setting up read-only MySQL access |
 
 ## Key Features
 
 ### Analytics Dashboard
-- KPI cards (Total Issues, This Week, This Month, Critical)
-- 30-day trend chart
-- Team performance cards with week-over-week comparison
-- CC performance table with search, filters, status indicators
+- **KPI Cards**: Total Issues, This Week, This Month, Critical Issues
+- **30-day Trend Chart**: Visual representation of issue trends
+- **Interactive Team Performance**:
+  - Default view: Team Leads with aggregated team statistics
+  - Drill-down: Click Team Lead to see individual CCs
+  - Period selector: Week / Month / Quarter
+  - Status indicators: Improving (fewer issues) / Declining (more issues) / Stable
+- **Month-over-Month Comparison**: Cards showing current vs previous period
+- **Auto-generated Insights**: AI-style observations about top issues and trends
 
 ### Issue Management
 - Paginated table with all issues
 - Filters: date range, source, team, CC, severity
 - Export to CSV
+
+### Email Reports
+- **Daily Reports**: Automatic email reports for Team Leads at 7 AM EST
+- **Weekend Logic**:
+  - Saturday/Sunday: No reports sent
+  - Monday: Includes Friday + Saturday + Sunday issues
+- **Report Types**:
+  - Operations report (all issues)
+  - Team Lead reports (team-specific issues)
+- **Admin Controls**: Manual send, test emails, email logs
 
 ### Role-Based Access Control
 | Role | Data Access | Features |
@@ -125,6 +141,14 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\
 
 # Frontend (Vite)
 VITE_API_URL=http://localhost:3000
+
+# Email Reports (SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=Quality Monitoring <your-email@gmail.com>
+REPORT_RECIPIENTS=ops1@example.com,ops2@example.com
 ```
 
 ## Production Environment
