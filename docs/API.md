@@ -269,6 +269,251 @@ Get issue analytics with month comparison and insights.
 
 ---
 
+## Returns Endpoints
+
+### GET /api/returns
+
+List returns with pagination and filters.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| page | number | 1 | Page number |
+| limit | number | 50 | Items per page |
+| date_from | string | - | Start date (YYYY-MM-DD) |
+| date_to | string | - | End date (YYYY-MM-DD) |
+| cc_user_id | number | - | CC user ID |
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "return_date": "2026-01-15",
+      "client_name": "Acme Corp",
+      "block": "DA block",
+      "cid": "CID123456",
+      "cc_abbreviation": "VY",
+      "cc_user_id": 15,
+      "cc_name": "Varvara Yevsiukova",
+      "team_lead_name": "Maria Kavalek",
+      "reasons": [
+        { "reason": "CC: Industry doesn't fit", "count": 5 }
+      ],
+      "total_leads": 5,
+      "cc_fault": 5,
+      "initial_returns_number": 12
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total": 118,
+    "total_pages": 3
+  }
+}
+```
+
+### GET /api/returns/overview
+
+Get returns summary statistics.
+
+**Response (200):**
+```json
+{
+  "total_returns": 817,
+  "total_cc_fault": 118,
+  "cc_fault_percent": 14.4,
+  "returns_this_week": 45,
+  "cc_fault_this_week": 12,
+  "cc_fault_percent_this_week": 26.7,
+  "returns_this_month": 817,
+  "cc_fault_this_month": 118,
+  "cc_fault_percent_this_month": 14.4
+}
+```
+
+### GET /api/returns/by-cc
+
+Get returns grouped by CC.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| limit | number | 20 | Max results |
+
+**Response (200):**
+```json
+{
+  "by_cc": [
+    {
+      "cc_id": 15,
+      "cc_name": "Varvara Yevsiukova",
+      "cc_abbreviation": "VY",
+      "team_lead": "Maria Kavalek",
+      "return_count": 10,
+      "total_returns": 99,
+      "total_cc_fault": 61
+    }
+  ]
+}
+```
+
+### GET /api/returns/by-reason
+
+Get returns grouped by reason.
+
+**Response (200):**
+```json
+{
+  "by_reason": [
+    {
+      "reason": "CC: Industry doesn't fit",
+      "total_count": 79,
+      "return_count": 15
+    },
+    {
+      "reason": "CC: Job Function doesn't fit",
+      "total_count": 35,
+      "return_count": 8
+    }
+  ]
+}
+```
+
+### GET /api/returns/trends
+
+Get daily returns trends.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| days | number | 30 | Number of days |
+
+**Response (200):**
+```json
+{
+  "trends": [
+    {
+      "date": "2026-01-01",
+      "total_returns": 25,
+      "cc_fault": 5
+    }
+  ]
+}
+```
+
+### GET /api/returns/analytics
+
+Get comprehensive returns analytics for a period. **Main analytics endpoint.**
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| period | string | month | Period: `week`, `month`, or `quarter` |
+
+**Response (200):**
+```json
+{
+  "period": "month",
+  "summary": {
+    "total_records": 118,
+    "total_returns": 817,
+    "total_cc_fault": 118,
+    "cc_fault_percent": 14.4,
+    "cc_with_faults": 8,
+    "blocks_affected": 15
+  },
+  "by_reason": [
+    {
+      "reason": "CC: Industry doesn't fit",
+      "count": 79,
+      "unique_cids": 4
+    },
+    {
+      "reason": "CC: Job Function doesn't fit",
+      "count": 35,
+      "unique_cids": 5
+    },
+    {
+      "reason": "CC: Not correct asset",
+      "count": 4,
+      "unique_cids": 1
+    }
+  ],
+  "by_team": [
+    {
+      "team_lead_id": 2,
+      "team_lead_name": "Maria Kavalek",
+      "cc_count": 2,
+      "total_returns": 107,
+      "total_cc_fault": 66,
+      "cc_fault_percent": 61.7,
+      "blocks": ["DA block", "DU block", "XA block"]
+    }
+  ],
+  "by_cc": [
+    {
+      "cc_id": 15,
+      "cc_name": "Varvara Yevsiukova",
+      "cc_abbreviation": "VY-6H-WORK",
+      "team_lead": "Maria Kavalek",
+      "total_returns": 99,
+      "total_cc_fault": 61,
+      "cc_fault_percent": 61.6,
+      "blocks": ["DA block", "DU block"]
+    }
+  ]
+}
+```
+
+### POST /api/returns/sync
+
+Trigger returns sync from Google Sheets. **Admin only.**
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "rows_fetched": 150,
+  "rows_with_cc_fault": 118,
+  "rows_inserted": 5,
+  "rows_updated": 113,
+  "errors": []
+}
+```
+
+### GET /api/returns/sync/logs
+
+Get returns sync history.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| limit | number | 20 | Max results |
+
+**Response (200):**
+```json
+{
+  "logs": [
+    {
+      "id": 50,
+      "started_at": "2026-01-28T10:30:00Z",
+      "completed_at": "2026-01-28T10:30:15Z",
+      "status": "success",
+      "rows_fetched": 150,
+      "rows_with_cc_fault": 118,
+      "rows_inserted": 5,
+      "rows_updated": 113,
+      "error_message": null
+    }
+  ]
+}
+```
+
+---
+
 ## Issues Endpoints
 
 ### GET /api/issues

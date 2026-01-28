@@ -307,24 +307,21 @@ function CCCard({ cc, period }: { cc: CCAnalytics; period: Period }) {
 
 // Returns Tab Content Component
 function ReturnsTabContent() {
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month' | 'quarter'>('month');
+
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['returns', 'overview'],
     queryFn: returnsApi.overview,
   });
 
-  const { data: byCC } = useQuery({
-    queryKey: ['returns', 'by-cc'],
-    queryFn: () => returnsApi.byCC(20),
-  });
-
-  const { data: byReason } = useQuery({
-    queryKey: ['returns', 'by-reason'],
-    queryFn: returnsApi.byReason,
-  });
-
   const { data: trends } = useQuery({
     queryKey: ['returns', 'trends'],
     queryFn: () => returnsApi.trends(30),
+  });
+
+  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['returns', 'analytics', analyticsPeriod],
+    queryFn: () => returnsApi.analytics(analyticsPeriod),
   });
 
   if (overviewLoading) {
@@ -335,7 +332,7 @@ function ReturnsTabContent() {
     );
   }
 
-  const hasData = overview && (overview.total_returns > 0 || overview.total_leads > 0);
+  const hasData = overview && (overview.total_returns > 0 || overview.total_cc_fault > 0);
 
   if (!hasData) {
     return (
@@ -347,12 +344,13 @@ function ReturnsTabContent() {
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No Returns Data Yet</h3>
           <p className="text-gray-500 mb-6">
             Returns data will appear here after synchronization.
-            Only returns where CC Fault = 0 are tracked.
           </p>
         </div>
       </div>
     );
   }
+
+  const periodLabels = { week: 'This Week', month: 'This Month', quarter: 'This Quarter' };
 
   return (
     <div className="space-y-6">
@@ -360,35 +358,35 @@ function ReturnsTabContent() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Returns"
-          value={overview?.total_returns || 0}
-          subtitle="All time"
-          icon={<RotateCcw className="w-6 h-6" />}
+          value={overview?.total_returns?.toLocaleString() || 0}
+          subtitle="All returned leads"
+          icon={<Package className="w-6 h-6" />}
           color="indigo"
         />
         <StatCard
-          title="Total Leads Returned"
-          value={overview?.total_leads || 0}
-          subtitle="All time"
-          icon={<Package className="w-6 h-6" />}
+          title="CC Fault"
+          value={overview?.total_cc_fault?.toLocaleString() || 0}
+          subtitle={`${overview?.cc_fault_percent || 0}% of returns`}
+          icon={<AlertTriangle className="w-6 h-6" />}
           color="rose"
         />
         <StatCard
           title="This Week"
-          value={overview?.this_week || 0}
-          subtitle="Returns count"
+          value={overview?.cc_fault_this_week || 0}
+          subtitle={`of ${overview?.returns_this_week || 0} returns (${overview?.cc_fault_percent_this_week || 0}%)`}
           icon={<Calendar className="w-6 h-6" />}
           color="emerald"
         />
         <StatCard
           title="This Month"
-          value={overview?.this_month || 0}
-          subtitle={`${overview?.leads_this_month || 0} leads`}
+          value={overview?.cc_fault_this_month || 0}
+          subtitle={`of ${overview?.returns_this_month || 0} returns (${overview?.cc_fault_percent_this_month || 0}%)`}
           icon={<TrendingUp className="w-6 h-6" />}
           color="amber"
         />
       </div>
 
-      {/* Trend Chart & Top Reasons */}
+      {/* Trend Chart & Period Analytics Summary */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Trend Chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -420,88 +418,196 @@ function ReturnsTabContent() {
                   labelFormatter={(value) => new Date(value).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
-                <Area type="monotone" dataKey="return_count" name="Returns" stroke="#f43f5e" strokeWidth={2.5} fill="url(#returnsGradient)" />
+                <Area type="monotone" dataKey="cc_fault" name="CC Fault" stroke="#f43f5e" strokeWidth={2.5} fill="url(#returnsGradient)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Top Reasons */}
+        {/* Period Summary */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Return Reasons</h3>
-          <p className="text-xs text-gray-500 mb-4">This month</p>
-          {byReason?.by_reason?.length > 0 ? (
-            <div className="space-y-3">
-              {byReason.by_reason.slice(0, 8).map((item: any, index: number) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="w-6 h-6 rounded-full bg-rose-100 text-rose-600 text-xs font-medium flex items-center justify-center flex-shrink-0">
-                      {index + 1}
-                    </span>
-                    <span className="text-sm text-gray-700 truncate">{item.reason}</span>
-                  </div>
-                  <span className="text-sm font-semibold text-gray-900 ml-2">{item.total_count}</span>
-                </div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Period Summary</h3>
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              {(['week', 'month', 'quarter'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setAnalyticsPeriod(p)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    analyticsPeriod === p
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
               ))}
             </div>
+          </div>
+          {analyticsLoading ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          ) : analytics?.summary ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Total Returns</p>
+                  <p className="text-xl font-bold text-gray-900">{analytics.summary.total_returns?.toLocaleString()}</p>
+                </div>
+                <div className="bg-rose-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">CC Fault</p>
+                  <p className="text-xl font-bold text-rose-600">{analytics.summary.total_cc_fault?.toLocaleString()}</p>
+                  <p className="text-xs text-rose-500">{analytics.summary.cc_fault_percent}%</p>
+                </div>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">CCs with faults</span>
+                <span className="font-medium">{analytics.summary.cc_with_faults}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Blocks affected</span>
+                <span className="font-medium">{analytics.summary.blocks_affected}</span>
+              </div>
+            </div>
           ) : (
-            <p className="text-sm text-gray-400">No data yet</p>
+            <p className="text-sm text-gray-400">No data</p>
           )}
         </div>
       </div>
 
-      {/* Returns by CC */}
+      {/* Period Analytics - Reasons & Teams */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* CC Fault Reasons Distribution */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">CC Fault Distribution</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+          </div>
+          {analytics?.by_reason?.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-2 text-xs font-medium text-gray-500">Reason</th>
+                    <th className="text-right py-2 text-xs font-medium text-gray-500">Count</th>
+                    <th className="text-right py-2 text-xs font-medium text-gray-500">CIDs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.by_reason.map((item: any, index: number) => (
+                    <tr key={index} className="border-b border-gray-50">
+                      <td className="py-2">
+                        <span className="text-sm text-gray-700">{item.reason?.replace('CC: ', '')}</span>
+                      </td>
+                      <td className="py-2 text-right font-semibold text-rose-600">{item.count}</td>
+                      <td className="py-2 text-right text-gray-500">{item.unique_cids}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-2 font-medium text-gray-900">Total</td>
+                    <td className="py-2 text-right font-bold text-rose-600">
+                      {analytics.by_reason.reduce((sum: number, r: any) => sum + r.count, 0)}
+                    </td>
+                    <td className="py-2 text-right text-gray-500">-</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-4">No CC faults in this period</p>
+          )}
+        </div>
+
+        {/* By Team Lead */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">By Team Lead</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+          </div>
+          {analytics?.by_team?.length > 0 ? (
+            <div className="space-y-3">
+              {analytics.by_team.map((team: any) => (
+                <div key={team.team_lead_id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-gray-900">{team.team_lead_name}</span>
+                    <span className="text-rose-600 font-bold">{team.total_cc_fault} faults</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>{team.cc_count} CCs • {team.total_returns} returns</span>
+                    <span className="text-rose-500">{team.cc_fault_percent}%</span>
+                  </div>
+                  {team.blocks?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {team.blocks.slice(0, 5).map((block: string) => (
+                        <span key={block} className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
+                          {block}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-4">No CC faults in this period</p>
+          )}
+        </div>
+      </div>
+
+      {/* CC Details Table */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Returns by CC</h3>
-        {byCC?.by_cc?.length > 0 ? (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">CC Fault Details</h3>
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]} • Active CCs only</span>
+        </div>
+        {analytics?.by_cc?.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">CC</th>
                   <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">Team Lead</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Total Returns</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Total Leads</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">This Month</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Last Month</th>
-                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Trend</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">Blocks</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Returns</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">CC Fault</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">%</th>
                 </tr>
               </thead>
               <tbody>
-                {byCC.by_cc.slice(0, 15).map((cc: any) => {
-                  const trend = cc.last_month > 0
-                    ? Math.round(((cc.this_month - cc.last_month) / cc.last_month) * 100)
-                    : cc.this_month > 0 ? 100 : 0;
-                  return (
-                    <tr key={cc.cc_user_id || cc.cc_abbreviation} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-3 px-2">
-                        <div>
-                          <p className="font-medium text-gray-900">{cc.cc_name}</p>
-                          {cc.cc_abbreviation && (
-                            <p className="text-xs text-gray-400">{cc.cc_abbreviation}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 text-sm text-gray-600">{cc.team_lead || '-'}</td>
-                      <td className="py-3 px-2 text-right font-semibold text-gray-900">{cc.return_count}</td>
-                      <td className="py-3 px-2 text-right text-rose-600 font-medium">{cc.total_leads}</td>
-                      <td className="py-3 px-2 text-right text-gray-700">{cc.this_month}</td>
-                      <td className="py-3 px-2 text-right text-gray-400">{cc.last_month}</td>
-                      <td className="py-3 px-2 text-right">
-                        <span className={`text-sm font-medium ${
-                          trend > 0 ? 'text-rose-600' : trend < 0 ? 'text-emerald-600' : 'text-gray-400'
-                        }`}>
-                          {trend > 0 ? '+' : ''}{trend}%
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {analytics.by_cc.map((cc: any) => (
+                  <tr key={cc.cc_id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-3 px-2">
+                      <div>
+                        <p className="font-medium text-gray-900">{cc.cc_name}</p>
+                        {cc.cc_abbreviation && (
+                          <p className="text-xs text-gray-400">{cc.cc_abbreviation}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 text-sm text-gray-600">{cc.team_lead || '-'}</td>
+                    <td className="py-3 px-2">
+                      <div className="flex flex-wrap gap-1">
+                        {cc.blocks?.slice(0, 3).map((block: string) => (
+                          <span key={block} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                            {block}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 text-right text-gray-700">{cc.total_returns?.toLocaleString()}</td>
+                    <td className="py-3 px-2 text-right font-semibold text-rose-600">{cc.total_cc_fault}</td>
+                    <td className="py-3 px-2 text-right text-gray-500">{cc.cc_fault_percent}%</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="text-sm text-gray-400 text-center py-8">No returns data yet</p>
+          <p className="text-sm text-gray-400 text-center py-8">No CC faults in this period</p>
         )}
       </div>
     </div>

@@ -169,6 +169,10 @@ export const returnsApi = {
     const response = await api.get('/api/returns/sync/logs', { params: { limit } });
     return response.data;
   },
+  analytics: async (period: 'week' | 'month' | 'quarter' = 'month') => {
+    const response = await api.get('/api/returns/analytics', { params: { period } });
+    return response.data;
+  },
 };
 
 export const reportsApi = {

@@ -54,15 +54,21 @@ export async function syncReturns(): Promise<ReturnsSyncResult> {
       const row = data.rows[i];
 
       try {
-        // Check CC Fault column (normalized header: cc_fault)
-        const ccFault = parseInt(row.cc_fault || row.ccfault || '', 10);
+        // Parse CC Fault (can be 0 or empty - we store all rows now)
+        const ccFault = parseInt(row.cc_fault || row.ccfault || '0', 10) || 0;
 
-        // Skip rows where CC Fault is not 0
-        if (isNaN(ccFault) || ccFault !== 0) {
-          continue;
+        // Count rows with CC fault for stats
+        if (ccFault > 0) {
+          result.rows_with_cc_fault++;
         }
 
-        result.rows_with_cc_fault++;
+        // Parse initial returns number (total returns in this row)
+        const initialReturnsNumber = parseInt(row.initial_returns_number || row.initialreturnsnumber || '0', 10) || 0;
+
+        // Skip rows with no returns data
+        if (initialReturnsNumber <= 0) {
+          continue;
+        }
 
         // Parse return data
         const returnDate = parseDate(row.return_receive_date || row.returnreceivedate || '');
@@ -80,7 +86,7 @@ export async function syncReturns(): Promise<ReturnsSyncResult> {
         // Find user by abbreviation
         const ccUserId = userMap.get(ccAbbreviation) || null;
 
-        // Parse all CC Reason/Count pairs
+        // Parse all CC Reason/Count pairs (from CC columns AND QC/CAT columns with "CC:" prefix)
         const reasons = parseReasons(row, data.headers);
         const totalLeads = reasons.reduce((sum, r) => sum + r.count, 0);
 
@@ -93,8 +99,8 @@ export async function syncReturns(): Promise<ReturnsSyncResult> {
           `INSERT INTO returns (
             external_row_hash, return_date, client_name, block, cid,
             cc_abbreviation, cc_user_id, team_lead_name,
-            reasons, total_leads, cc_fault, raw_data
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            reasons, total_leads, cc_fault, initial_returns_number, raw_data
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           ON CONFLICT (external_row_hash) DO UPDATE SET
             return_date = EXCLUDED.return_date,
             client_name = EXCLUDED.client_name,
@@ -106,6 +112,7 @@ export async function syncReturns(): Promise<ReturnsSyncResult> {
             reasons = EXCLUDED.reasons,
             total_leads = EXCLUDED.total_leads,
             cc_fault = EXCLUDED.cc_fault,
+            initial_returns_number = EXCLUDED.initial_returns_number,
             raw_data = EXCLUDED.raw_data,
             updated_at = NOW()
           RETURNING (xmax = 0) as inserted`,
@@ -121,6 +128,7 @@ export async function syncReturns(): Promise<ReturnsSyncResult> {
             JSON.stringify(reasons),
             totalLeads,
             ccFault,
+            initialReturnsNumber,
             JSON.stringify(row),
           ]
         );
@@ -163,8 +171,7 @@ async function buildUserAbbreviationMap(): Promise<Map<string, number>> {
 function parseDate(dateStr: string): string | null {
   if (!dateStr) return null;
 
-  // Try various date formats
-  // Format: DD/MM/YYYY or MM/DD/YYYY or YYYY-MM-DD
+  // Google Sheets uses M/D/YYYY format (US format)
   const parts = dateStr.split(/[\/\-\.]/);
 
   if (parts.length === 3) {
@@ -175,15 +182,15 @@ function parseDate(dateStr: string): string | null {
       year = parseInt(parts[0], 10);
       month = parseInt(parts[1], 10);
       day = parseInt(parts[2], 10);
-    } else if (parseInt(parts[0], 10) > 12) {
-      // DD/MM/YYYY (day > 12)
-      day = parseInt(parts[0], 10);
-      month = parseInt(parts[1], 10);
+    } else if (parseInt(parts[1], 10) > 12) {
+      // Second part > 12 means it's day, so format is M/D/YYYY
+      month = parseInt(parts[0], 10);
+      day = parseInt(parts[1], 10);
       year = parseInt(parts[2], 10);
     } else {
-      // Assume DD/MM/YYYY
-      day = parseInt(parts[0], 10);
-      month = parseInt(parts[1], 10);
+      // Assume M/D/YYYY (US format - month first)
+      month = parseInt(parts[0], 10);
+      day = parseInt(parts[1], 10);
       year = parseInt(parts[2], 10);
     }
 
@@ -224,6 +231,26 @@ function parseReasons(row: Record<string, string>, headers: string[]): ReturnRea
     const count = parseInt(countStr, 10) || 0;
 
     if (reason && reason.trim() && count > 0) {
+      reasons.push({ reason: reason.trim(), count });
+    }
+  }
+
+  // Also look for QC/CAT reasons that start with "CC:"
+  // Headers: qc__cat_reason_1, qc__cat_count_1, etc.
+  for (let i = 1; i <= 10; i++) {
+    const reasonKey = `qc__cat_reason_${i}`;
+    const countKey = `qc__cat_count_${i}`;
+
+    // Also try alternative formats
+    const reasonKeyAlt = `qc_cat_reason_${i}`;
+    const countKeyAlt = `qc_cat_count_${i}`;
+
+    const reason = row[reasonKey] || row[reasonKeyAlt] || '';
+    const countStr = row[countKey] || row[countKeyAlt] || '';
+    const count = parseInt(countStr, 10) || 0;
+
+    // Only include QC/CAT reasons that start with "CC:"
+    if (reason && reason.trim().startsWith('CC:') && count > 0) {
       reasons.push({ reason: reason.trim(), count });
     }
   }
