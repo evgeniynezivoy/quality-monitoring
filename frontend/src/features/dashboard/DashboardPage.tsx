@@ -18,7 +18,6 @@ import {
   ChevronDown,
   ChevronUp,
   Lightbulb,
-  BarChart3,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -28,9 +27,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts';
 
 // Types
@@ -78,12 +74,6 @@ interface IssueAnalytics {
   top_teams: { team: string; count: number; top_issue: string }[];
   top_sources: { source: string; count: number }[];
 }
-
-// Pie chart colors
-const PIE_COLORS = [
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
-  '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6'
-];
 
 // Stat Card Component
 function StatCard({
@@ -207,6 +197,19 @@ function TeamCard({ team }: { team: TeamAnalytics }) {
 // Period type
 type Period = 'week' | 'month' | 'quarter';
 
+// Helper to calculate status based on current/previous values
+function calculateStatus(current: number, previous: number): 'improving' | 'declining' | 'stable' {
+  if (current < previous) return 'improving'; // fewer issues = good
+  if (current > previous) return 'declining'; // more issues = bad
+  return 'stable';
+}
+
+// Helper to calculate trend percentage
+function calculateTrend(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
 // CC Card Component
 function CCCard({ cc, period }: { cc: CCAnalytics; period: Period }) {
   const getInitials = (name: string) => {
@@ -224,13 +227,16 @@ function CCCard({ cc, period }: { cc: CCAnalytics; period: Period }) {
     'bg-purple-500', 'bg-cyan-500', 'bg-pink-500', 'bg-teal-500',
   ];
 
-  const status = statusConfig[cc.status];
-  const StatusIcon = status.icon;
-
-  // Get values based on period
+  // Get values based on period (quarter uses month data for now)
   const currentValue = period === 'week' ? cc.this_week : cc.this_month;
   const previousValue = period === 'week' ? cc.last_week : cc.last_month;
-  const trend = period === 'week' ? cc.week_trend : cc.month_trend;
+
+  // Calculate status and trend based on selected period values
+  const periodStatus = calculateStatus(currentValue, previousValue);
+  const trend = calculateTrend(currentValue, previousValue);
+
+  const status = statusConfig[periodStatus];
+  const StatusIcon = status.icon;
 
   const periodLabels = {
     week: { current: 'This Week', previous: 'Last Week' },
@@ -382,20 +388,30 @@ export function DashboardPage() {
   // Get unique teams for filter
   const teams = [...new Set(ccAnalytics.map(cc => cc.team))].filter(t => t !== 'Unknown');
 
-  // Filter CC analytics
+  // Filter CC analytics with proper status calculation based on selected period
   const filteredCCAnalytics = ccAnalytics.filter(cc => {
     const matchesSearch = cc.cc_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           cc.team.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesTeam = teamFilter === 'all' || cc.team === teamFilter;
+
+    // Get values based on selected period
+    const currentValue = period === 'week' ? cc.this_week : cc.this_month;
+    const previousValue = period === 'week' ? cc.last_week : cc.last_month;
+
+    // Calculate actual status based on selected period
+    const periodStatus = calculateStatus(currentValue, previousValue);
+
+    // Filter by status
     let matchesStatus = true;
-    if (statusFilter === 'all') {
-      matchesStatus = true;
-    } else if (statusFilter === 'active') {
-      matchesStatus = cc.status === 'improving' || cc.status === 'declining';
-    } else {
-      matchesStatus = cc.status === statusFilter;
+    if (statusFilter !== 'all') {
+      matchesStatus = periodStatus === statusFilter;
     }
-    return matchesSearch && matchesTeam && matchesStatus;
+
+    // Don't show people with 0 current issues UNLESS a specific team is selected
+    const hasCurrentIssues = currentValue > 0 || previousValue > 0;
+    const showZeroIssues = teamFilter !== 'all'; // Show all team members when team is selected
+
+    return matchesSearch && matchesTeam && matchesStatus && (hasCurrentIssues || showZeroIssues);
   });
 
   // Summary stats
@@ -539,68 +555,9 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Issue Type Distribution & Insights */}
+        {/* Month Comparison & Insights */}
         {issueAnalytics && (
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Issue Type Donut Chart */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="w-5 h-5 text-gray-400" />
-                <h3 className="text-lg font-semibold text-gray-900">Issues by Type</h3>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">This month distribution</p>
-
-              {issueAnalytics.issue_types.length > 0 ? (
-                <>
-                  <div className="h-[180px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={issueAnalytics.issue_types}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={75}
-                          paddingAngle={2}
-                          dataKey="count"
-                          nameKey="type"
-                        >
-                          {issueAnalytics.issue_types.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value: number) => [value, 'Issues']}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  {/* Legend */}
-                  <div className="mt-3 space-y-1.5 max-h-[120px] overflow-y-auto">
-                    {issueAnalytics.issue_types.slice(0, 5).map((item, index) => (
-                      <div key={item.type} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
-                          />
-                          <span className="text-gray-600 truncate max-w-[120px]" title={item.type}>
-                            {item.type}
-                          </span>
-                        </div>
-                        <span className="font-medium text-gray-900">{item.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="h-[200px] flex items-center justify-center text-gray-400">
-                  No data for this month
-                </div>
-              )}
-            </div>
-
+          <div className="grid gap-6 lg:grid-cols-2">
             {/* Month Comparison */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Month Comparison</h3>

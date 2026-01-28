@@ -396,7 +396,11 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       const topTeams = topTeamsResult.rows;
       if (topTeams.length > 0 && topTeams[0].team !== 'Unknown') {
         const topTeam = topTeams[0];
-        insights.push(`${topTeam.team} team leads with ${topTeam.count} issues this month, mainly "${topTeam.top_issue_type || 'various'}"`);
+        // Only add insight if we have a valid issue type (not empty or "-")
+        const issueInfo = topTeam.top_issue_type && topTeam.top_issue_type !== '-' && topTeam.top_issue_type.trim() !== ''
+          ? `, mainly in "${topTeam.top_issue_type}"`
+          : '';
+        insights.push(`${topTeam.team} team leads with ${topTeam.count} issues this month${issueInfo}`);
       }
 
       if (monthChange > 20) {
@@ -407,16 +411,22 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
 
       const topSources = topSourcesResult.rows;
       if (topSources.length > 0) {
-        const sourceNames = topSources.slice(0, 2).map(s => s.source).join(' and ');
-        insights.push(`Most issues come from ${sourceNames} sources`);
+        const validSources = topSources.filter(s => s.source && s.source.trim() !== '');
+        if (validSources.length > 0) {
+          const sourceNames = validSources.slice(0, 2).map(s => s.source).join(' and ');
+          insights.push(`Most issues come from ${sourceNames} sources`);
+        }
       }
 
-      const topIssueTypes = issueTypeResult.rows.slice(0, 2);
-      if (topIssueTypes.length > 0) {
-        const total = issueTypeResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
-        const topPercent = total > 0 ? Math.round((parseInt(topIssueTypes[0].count, 10) / total) * 100) : 0;
+      // Filter out empty/null issue types
+      const validIssueTypes = issueTypeResult.rows.filter(r =>
+        r.issue_type && r.issue_type !== '-' && r.issue_type.trim() !== '' && r.issue_type !== 'Unknown'
+      );
+      if (validIssueTypes.length > 0) {
+        const total = validIssueTypes.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
+        const topPercent = total > 0 ? Math.round((parseInt(validIssueTypes[0].count, 10) / total) * 100) : 0;
         if (topPercent > 30) {
-          insights.push(`"${topIssueTypes[0].issue_type}" accounts for ${topPercent}% of all issues`);
+          insights.push(`"${validIssueTypes[0].issue_type}" accounts for ${topPercent}% of categorized issues`);
         }
       }
 
