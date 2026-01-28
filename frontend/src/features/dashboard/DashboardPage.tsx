@@ -41,6 +41,9 @@ interface CCAnalytics {
   this_month: number;
   last_month: number;
   month_trend: number;
+  this_quarter: number;
+  last_quarter: number;
+  quarter_trend: number;
   sources: string[];
   status: 'improving' | 'declining' | 'stable';
 }
@@ -228,9 +231,9 @@ function CCCard({ cc, period }: { cc: CCAnalytics; period: Period }) {
     'bg-purple-500', 'bg-cyan-500', 'bg-pink-500', 'bg-teal-500',
   ];
 
-  // Get values based on period (quarter uses month data for now)
-  const currentValue = period === 'week' ? cc.this_week : cc.this_month;
-  const previousValue = period === 'week' ? cc.last_week : cc.last_month;
+  // Get values based on period
+  const currentValue = period === 'week' ? cc.this_week : period === 'month' ? cc.this_month : cc.this_quarter;
+  const previousValue = period === 'week' ? cc.last_week : period === 'month' ? cc.last_month : cc.last_quarter;
 
   // Calculate status and trend based on selected period values
   const periodStatus = calculateStatus(currentValue, previousValue);
@@ -397,6 +400,8 @@ export function DashboardPage() {
         last_week: 0,
         this_month: 0,
         last_month: 0,
+        this_quarter: 0,
+        last_quarter: 0,
         members: [] as CCAnalytics[],
       };
     }
@@ -405,16 +410,18 @@ export function DashboardPage() {
     acc[teamLead].last_week += cc.last_week;
     acc[teamLead].this_month += cc.this_month;
     acc[teamLead].last_month += cc.last_month;
+    acc[teamLead].this_quarter += cc.this_quarter || 0;
+    acc[teamLead].last_quarter += cc.last_quarter || 0;
     acc[teamLead].members.push(cc);
     return acc;
-  }, {} as Record<string, { teamLead: string; ccCount: number; this_week: number; last_week: number; this_month: number; last_month: number; members: CCAnalytics[] }>);
+  }, {} as Record<string, { teamLead: string; ccCount: number; this_week: number; last_week: number; this_month: number; last_month: number; this_quarter: number; last_quarter: number; members: CCAnalytics[] }>);
 
   // Convert to array and sort by current period issues
   const teamLeadList = Object.values(teamLeadStats)
     .filter(tl => tl.teamLead !== 'N/A' && tl.teamLead !== 'Unassigned')
     .sort((a, b) => {
-      const aValue = period === 'week' ? a.this_week : a.this_month;
-      const bValue = period === 'week' ? b.this_week : b.this_month;
+      const aValue = period === 'week' ? a.this_week : period === 'month' ? a.this_month : a.this_quarter;
+      const bValue = period === 'week' ? b.this_week : period === 'month' ? b.this_month : b.this_quarter;
       return bValue - aValue;
     });
 
@@ -427,8 +434,8 @@ export function DashboardPage() {
         const matchesSearch = cc.cc_name.toLowerCase().includes(searchTerm.toLowerCase());
 
         // Get values based on selected period
-        const currentValue = period === 'week' ? cc.this_week : cc.this_month;
-        const previousValue = period === 'week' ? cc.last_week : cc.last_month;
+        const currentValue = period === 'week' ? cc.this_week : period === 'month' ? cc.this_month : cc.this_quarter;
+        const previousValue = period === 'week' ? cc.last_week : period === 'month' ? cc.last_month : cc.last_quarter;
 
         // Calculate actual status based on selected period
         const periodStatus = calculateStatus(currentValue, previousValue);
@@ -788,8 +795,8 @@ export function DashboardPage() {
                   key={tl.teamLead}
                   teamLead={tl.teamLead}
                   ccCount={tl.ccCount}
-                  currentIssues={period === 'week' ? tl.this_week : tl.this_month}
-                  previousIssues={period === 'week' ? tl.last_week : tl.last_month}
+                  currentIssues={period === 'week' ? tl.this_week : period === 'month' ? tl.this_month : tl.this_quarter}
+                  previousIssues={period === 'week' ? tl.last_week : period === 'month' ? tl.last_month : tl.last_quarter}
                   period={period}
                   onClick={() => setSelectedTeamLead(tl.teamLead)}
                   isSelected={false}

@@ -225,7 +225,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       const roleFilter = buildRoleWhereClause(request.user);
       const params = roleFilter.params;
 
-      // Get CC stats with current week, last week, current month comparison
+      // Get CC stats with current week, last week, current month, quarter comparison
       const result = await query<{
         cc_id: number;
         cc_name: string;
@@ -236,6 +236,8 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         last_week: string;
         this_month: string;
         last_month: string;
+        this_quarter: string;
+        last_quarter: string;
         sources: string[];
       }>(
         `WITH date_ranges AS (
@@ -244,7 +246,10 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
             CURRENT_DATE - INTERVAL '14 days' as last_week_start,
             DATE_TRUNC('month', CURRENT_DATE) as month_start,
             DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' as last_month_start,
-            DATE_TRUNC('month', CURRENT_DATE) as last_month_end
+            DATE_TRUNC('month', CURRENT_DATE) as last_month_end,
+            DATE_TRUNC('quarter', CURRENT_DATE) as quarter_start,
+            DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '3 months' as last_quarter_start,
+            DATE_TRUNC('quarter', CURRENT_DATE) as last_quarter_end
         )
         SELECT
           COALESCE(i.responsible_cc_id, 0) as cc_id,
@@ -256,6 +261,8 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_week_start FROM date_ranges) AND i.issue_date < (SELECT week_start FROM date_ranges)) as last_week,
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT month_start FROM date_ranges)) as this_month,
           COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_month_start FROM date_ranges) AND i.issue_date < (SELECT last_month_end FROM date_ranges)) as last_month,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT quarter_start FROM date_ranges)) as this_quarter,
+          COUNT(*) FILTER (WHERE i.issue_date >= (SELECT last_quarter_start FROM date_ranges) AND i.issue_date < (SELECT last_quarter_end FROM date_ranges)) as last_quarter,
           ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL AND i.issue_date >= (SELECT week_start FROM date_ranges)) as sources
         FROM issues i
         LEFT JOIN users u ON i.responsible_cc_id = u.id
@@ -277,6 +284,10 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           const lastMonth = parseInt(r.last_month, 10);
           const monthTrend = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : (thisMonth > 0 ? 100 : 0);
 
+          const thisQuarter = parseInt(r.this_quarter, 10);
+          const lastQuarter = parseInt(r.last_quarter, 10);
+          const quarterTrend = lastQuarter > 0 ? Math.round(((thisQuarter - lastQuarter) / lastQuarter) * 100) : (thisQuarter > 0 ? 100 : 0);
+
           return {
             cc_id: r.cc_id,
             cc_name: r.cc_name,
@@ -289,6 +300,9 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
             this_month: thisMonth,
             last_month: lastMonth,
             month_trend: monthTrend,
+            this_quarter: thisQuarter,
+            last_quarter: lastQuarter,
+            quarter_trend: quarterTrend,
             sources: r.sources || [],
             status: weekTrend < 0 ? 'improving' : weekTrend > 0 ? 'declining' : 'stable',
           };
