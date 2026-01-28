@@ -140,6 +140,37 @@ export const adminApi = {
   },
 };
 
+export const returnsApi = {
+  list: async (params?: Record<string, any>) => {
+    const response = await api.get('/api/returns', { params });
+    return response.data;
+  },
+  overview: async () => {
+    const response = await api.get('/api/returns/overview');
+    return response.data;
+  },
+  byCC: async (limit?: number) => {
+    const response = await api.get('/api/returns/by-cc', { params: { limit } });
+    return response.data;
+  },
+  byReason: async () => {
+    const response = await api.get('/api/returns/by-reason');
+    return response.data;
+  },
+  trends: async (days?: number) => {
+    const response = await api.get('/api/returns/trends', { params: { days } });
+    return response.data;
+  },
+  sync: async () => {
+    const response = await api.post('/api/returns/sync');
+    return response.data;
+  },
+  syncLogs: async (limit?: number) => {
+    const response = await api.get('/api/returns/sync/logs', { params: { limit } });
+    return response.data;
+  },
+};
+
 export const reportsApi = {
   getDailyReport: async (date?: string) => {
     const response = await api.get('/api/reports/daily', { params: { date } });

@@ -124,6 +124,9 @@ export async function syncTeamRoster(): Promise<TeamSyncResult> {
           [ccEmail]
         );
 
+        // Get CC abbreviation
+        const ccAbbreviation = member.cc?.trim() || null;
+
         if (existing.rows.length > 0) {
           // Don't downgrade team leads or admins to CC
           const currentRole = existing.rows[0].role;
@@ -137,16 +140,17 @@ export async function syncTeamRoster(): Promise<TeamSyncResult> {
               team = $2,
               team_lead_id = $3,
               role = $4,
+              cc_abbreviation = $5,
               is_active = true
-            WHERE LOWER(email) = $5`,
-            [member.cc_full_name.trim(), team, teamLeadId, newRole, ccEmail]
+            WHERE LOWER(email) = $6`,
+            [member.cc_full_name.trim(), team, teamLeadId, newRole, ccAbbreviation, ccEmail]
           );
           result.ccs_updated++;
         } else {
           await query(
-            `INSERT INTO users (email, full_name, team, team_lead_id, role, is_active)
-            VALUES ($1, $2, $3, $4, 'cc', true)`,
-            [ccEmail, member.cc_full_name.trim(), team, teamLeadId]
+            `INSERT INTO users (email, full_name, team, team_lead_id, role, cc_abbreviation, is_active)
+            VALUES ($1, $2, $3, $4, 'cc', $5, true)`,
+            [ccEmail, member.cc_full_name.trim(), team, teamLeadId, ccAbbreviation]
           );
           result.ccs_created++;
         }

@@ -31,7 +31,8 @@ export function getDataFilter(user: JwtPayload): {
 
 export function buildRoleWhereClause(
   user: JwtPayload,
-  tableAlias: string = 'i'
+  ccColumn: string = 'i.responsible_cc_id',
+  userTableAlias: string = 'u'
 ): { clause: string; params: any[] } {
   const filter = getDataFilter(user);
 
@@ -42,13 +43,13 @@ export function buildRoleWhereClause(
   if (filter.column === 'team_lead_id') {
     // Join with users to filter by team_lead_id
     return {
-      clause: `(u.team_lead_id = $1 OR ${tableAlias}.responsible_cc_id = $1)`,
+      clause: `(${userTableAlias}.team_lead_id = $1 OR ${ccColumn} = $1)`,
       params: [filter.value],
     };
   }
 
   return {
-    clause: `${tableAlias}.${filter.column} = $1`,
+    clause: `${ccColumn} = $1`,
     params: [filter.value],
   };
 }

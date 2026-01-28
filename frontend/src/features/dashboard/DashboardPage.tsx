@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/layout/Header';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, returnsApi } from '@/lib/api';
 import {
   AlertCircle,
   TrendingUp,
@@ -301,6 +301,209 @@ function CCCard({ cc, period }: { cc: CCAnalytics; period: Period }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Returns Tab Content Component
+function ReturnsTabContent() {
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['returns', 'overview'],
+    queryFn: returnsApi.overview,
+  });
+
+  const { data: byCC } = useQuery({
+    queryKey: ['returns', 'by-cc'],
+    queryFn: () => returnsApi.byCC(20),
+  });
+
+  const { data: byReason } = useQuery({
+    queryKey: ['returns', 'by-reason'],
+    queryFn: returnsApi.byReason,
+  });
+
+  const { data: trends } = useQuery({
+    queryKey: ['returns', 'trends'],
+    queryFn: () => returnsApi.trends(30),
+  });
+
+  if (overviewLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="animate-pulse text-lg text-gray-500">Loading returns data...</div>
+      </div>
+    );
+  }
+
+  const hasData = overview && (overview.total_returns > 0 || overview.total_leads > 0);
+
+  if (!hasData) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12">
+        <div className="text-center max-w-md mx-auto">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Package className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Returns Data Yet</h3>
+          <p className="text-gray-500 mb-6">
+            Returns data will appear here after synchronization.
+            Only returns where CC Fault = 0 are tracked.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Returns"
+          value={overview?.total_returns || 0}
+          subtitle="All time"
+          icon={<RotateCcw className="w-6 h-6" />}
+          color="indigo"
+        />
+        <StatCard
+          title="Total Leads Returned"
+          value={overview?.total_leads || 0}
+          subtitle="All time"
+          icon={<Package className="w-6 h-6" />}
+          color="rose"
+        />
+        <StatCard
+          title="This Week"
+          value={overview?.this_week || 0}
+          subtitle="Returns count"
+          icon={<Calendar className="w-6 h-6" />}
+          color="emerald"
+        />
+        <StatCard
+          title="This Month"
+          value={overview?.this_month || 0}
+          subtitle={`${overview?.leads_this_month || 0} leads`}
+          icon={<TrendingUp className="w-6 h-6" />}
+          color="amber"
+        />
+      </div>
+
+      {/* Trend Chart & Top Reasons */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Trend Chart */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Returns Trend</h3>
+              <p className="text-sm text-gray-500">Last 30 days</p>
+            </div>
+          </div>
+          <div className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trends?.trends || []}>
+                <defs>
+                  <linearGradient id="returnsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}
+                  tick={{ fontSize: 11, fill: '#94a3b8' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  labelFormatter={(value) => new Date(value).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+                <Area type="monotone" dataKey="return_count" name="Returns" stroke="#f43f5e" strokeWidth={2.5} fill="url(#returnsGradient)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Top Reasons */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Return Reasons</h3>
+          <p className="text-xs text-gray-500 mb-4">This month</p>
+          {byReason?.by_reason?.length > 0 ? (
+            <div className="space-y-3">
+              {byReason.by_reason.slice(0, 8).map((item: any, index: number) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="w-6 h-6 rounded-full bg-rose-100 text-rose-600 text-xs font-medium flex items-center justify-center flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <span className="text-sm text-gray-700 truncate">{item.reason}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 ml-2">{item.total_count}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No data yet</p>
+          )}
+        </div>
+      </div>
+
+      {/* Returns by CC */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Returns by CC</h3>
+        {byCC?.by_cc?.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">CC</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">Team Lead</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Total Returns</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Total Leads</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">This Month</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Last Month</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-gray-500 uppercase">Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byCC.by_cc.slice(0, 15).map((cc: any) => {
+                  const trend = cc.last_month > 0
+                    ? Math.round(((cc.this_month - cc.last_month) / cc.last_month) * 100)
+                    : cc.this_month > 0 ? 100 : 0;
+                  return (
+                    <tr key={cc.cc_user_id || cc.cc_abbreviation} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-3 px-2">
+                        <div>
+                          <p className="font-medium text-gray-900">{cc.cc_name}</p>
+                          {cc.cc_abbreviation && (
+                            <p className="text-xs text-gray-400">{cc.cc_abbreviation}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-sm text-gray-600">{cc.team_lead || '-'}</td>
+                      <td className="py-3 px-2 text-right font-semibold text-gray-900">{cc.return_count}</td>
+                      <td className="py-3 px-2 text-right text-rose-600 font-medium">{cc.total_leads}</td>
+                      <td className="py-3 px-2 text-right text-gray-700">{cc.this_month}</td>
+                      <td className="py-3 px-2 text-right text-gray-400">{cc.last_month}</td>
+                      <td className="py-3 px-2 text-right">
+                        <span className={`text-sm font-medium ${
+                          trend > 0 ? 'text-rose-600' : trend < 0 ? 'text-emerald-600' : 'text-gray-400'
+                        }`}>
+                          {trend > 0 ? '+' : ''}{trend}%
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-8">No returns data yet</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -849,27 +1052,7 @@ export function DashboardPage() {
 
         {/* Returns Tab Content */}
         {activeTab === 'returns' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12">
-            <div className="text-center max-w-md mx-auto">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Package className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Returns Analytics</h3>
-              <p className="text-gray-500 mb-6">
-                This section will display returns data from the external platform.
-                Data integration is pending database access configuration.
-              </p>
-              <div className="text-xs text-gray-400 bg-gray-50 rounded-lg p-4">
-                <p className="font-medium text-gray-500 mb-1">Coming Soon:</p>
-                <ul className="space-y-1 text-left">
-                  <li>- Returns by date</li>
-                  <li>- Returns by team/agent</li>
-                  <li>- Return reasons analytics</li>
-                  <li>- Trend analysis</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          <ReturnsTabContent />
         )}
       </div>
     </div>

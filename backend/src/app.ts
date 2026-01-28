@@ -10,6 +10,7 @@ import { usersRoutes } from './routes/users.routes.js';
 import { syncRoutes } from './routes/sync.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { reportsRoutes } from './routes/reports.routes.js';
+import { returnsRoutes } from './routes/returns.routes.js';
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -51,6 +52,7 @@ export async function buildApp() {
   await fastify.register(syncRoutes);
   await fastify.register(adminRoutes);
   await fastify.register(reportsRoutes);
+  await fastify.register(returnsRoutes);
 
   // Global error handler
   fastify.setErrorHandler((error, request, reply) => {

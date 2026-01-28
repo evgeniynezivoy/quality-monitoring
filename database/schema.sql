@@ -6,6 +6,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255),
     full_name VARCHAR(255) NOT NULL,
+    cc_abbreviation VARCHAR(50),  -- CC аббревиатура для связи с Returns
     team_lead_id INTEGER REFERENCES users(id),
     team VARCHAR(50) NOT NULL,  -- LV, CS, Block, CDT_CW, QA
     role VARCHAR(20) DEFAULT 'cc' CHECK (role IN ('admin', 'team_lead', 'cc')),
@@ -91,6 +92,47 @@ CREATE TABLE email_logs (
     sent_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Returns (возвраты из Google Sheets, только где CC Fault = 0)
+CREATE TABLE returns (
+    id SERIAL PRIMARY KEY,
+    external_row_id VARCHAR(100),  -- ID строки для обновлений
+    external_row_hash VARCHAR(64),  -- хеш для дедупликации
+
+    return_date DATE NOT NULL,
+    client_name VARCHAR(255),
+    block VARCHAR(100),
+    cid VARCHAR(255),
+
+    cc_abbreviation VARCHAR(50),
+    cc_user_id INTEGER REFERENCES users(id),
+    team_lead_name VARCHAR(255),
+
+    -- Причины как JSONB: [{"reason": "...", "count": 5}, ...]
+    reasons JSONB,
+    total_leads INTEGER DEFAULT 0,
+
+    cc_fault INTEGER,  -- значение из колонки AP (должно быть 0)
+
+    raw_data JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(external_row_hash)
+);
+
+-- Returns sync logs
+CREATE TABLE returns_sync_logs (
+    id SERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    status VARCHAR(20) CHECK (status IN ('running', 'success', 'failed')),
+    rows_fetched INTEGER DEFAULT 0,
+    rows_with_cc_fault INTEGER DEFAULT 0,
+    rows_inserted INTEGER DEFAULT 0,
+    rows_updated INTEGER DEFAULT 0,
+    error_message TEXT
+);
+
 -- Indexes
 CREATE INDEX idx_issues_date ON issues(issue_date DESC);
 CREATE INDEX idx_issues_source ON issues(source_id);
@@ -106,6 +148,11 @@ CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at);
 CREATE INDEX idx_email_logs_sent_at ON email_logs(sent_at DESC);
 CREATE INDEX idx_email_logs_report_type ON email_logs(report_type);
+CREATE INDEX idx_users_cc_abbr ON users(cc_abbreviation);
+CREATE INDEX idx_returns_date ON returns(return_date DESC);
+CREATE INDEX idx_returns_cc_user ON returns(cc_user_id);
+CREATE INDEX idx_returns_cc_abbr ON returns(cc_abbreviation);
+CREATE INDEX idx_returns_cc_fault ON returns(cc_fault);
 
 -- Trigger for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
