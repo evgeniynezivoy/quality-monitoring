@@ -301,6 +301,152 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Issue Type Distribution and Period Comparison
+  fastify.get(
+    '/api/dashboard/issue-analytics',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const roleFilter = buildRoleWhereClause(request.user);
+      const params = roleFilter.params;
+
+      // Get issue type distribution for current month
+      const [
+        issueTypeResult,
+        monthCompareResult,
+        topTeamsResult,
+        topSourcesResult
+      ] = await Promise.all([
+        // Issue type distribution (this month)
+        query<{ issue_type: string; count: string }>(
+          `SELECT
+             COALESCE(i.issue_type, 'Unknown') as issue_type,
+             COUNT(*) as count
+           FROM issues i
+           LEFT JOIN users u ON i.responsible_cc_id = u.id
+           WHERE ${roleFilter.clause}
+             AND i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)
+           GROUP BY COALESCE(i.issue_type, 'Unknown')
+           ORDER BY count DESC
+           LIMIT 10`,
+          params
+        ),
+        // Month over month comparison
+        query<{
+          this_month: string;
+          last_month: string;
+          this_month_critical: string;
+          last_month_critical: string;
+        }>(
+          `SELECT
+             COUNT(*) FILTER (WHERE i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)) as this_month,
+             COUNT(*) FILTER (WHERE i.issue_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+                              AND i.issue_date < DATE_TRUNC('month', CURRENT_DATE)) as last_month,
+             COUNT(*) FILTER (WHERE i.issue_date >= DATE_TRUNC('month', CURRENT_DATE) AND i.issue_rate = 3) as this_month_critical,
+             COUNT(*) FILTER (WHERE i.issue_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+                              AND i.issue_date < DATE_TRUNC('month', CURRENT_DATE) AND i.issue_rate = 3) as last_month_critical
+           FROM issues i
+           LEFT JOIN users u ON i.responsible_cc_id = u.id
+           WHERE ${roleFilter.clause}`,
+          params
+        ),
+        // Top teams this month for insights
+        query<{ team: string; count: string; top_issue_type: string }>(
+          `SELECT
+             COALESCE(u.team, 'Unknown') as team,
+             COUNT(*) as count,
+             MODE() WITHIN GROUP (ORDER BY i.issue_type) as top_issue_type
+           FROM issues i
+           LEFT JOIN users u ON i.responsible_cc_id = u.id
+           WHERE ${roleFilter.clause}
+             AND i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)
+           GROUP BY COALESCE(u.team, 'Unknown')
+           ORDER BY count DESC
+           LIMIT 3`,
+          params
+        ),
+        // Top sources this month
+        query<{ source: string; count: string }>(
+          `SELECT
+             s.name as source,
+             COUNT(*) as count
+           FROM issues i
+           LEFT JOIN issue_sources s ON i.source_id = s.id
+           LEFT JOIN users u ON i.responsible_cc_id = u.id
+           WHERE ${roleFilter.clause}
+             AND i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)
+           GROUP BY s.name
+           ORDER BY count DESC
+           LIMIT 3`,
+          params
+        ),
+      ]);
+
+      // Calculate comparison metrics
+      const thisMonth = parseInt(monthCompareResult.rows[0]?.this_month || '0', 10);
+      const lastMonth = parseInt(monthCompareResult.rows[0]?.last_month || '0', 10);
+      const thisMonthCritical = parseInt(monthCompareResult.rows[0]?.this_month_critical || '0', 10);
+      const lastMonthCritical = parseInt(monthCompareResult.rows[0]?.last_month_critical || '0', 10);
+
+      const monthChange = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : 0;
+      const criticalChange = lastMonthCritical > 0 ? Math.round(((thisMonthCritical - lastMonthCritical) / lastMonthCritical) * 100) : 0;
+
+      // Generate insights
+      const insights: string[] = [];
+
+      const topTeams = topTeamsResult.rows;
+      if (topTeams.length > 0 && topTeams[0].team !== 'Unknown') {
+        const topTeam = topTeams[0];
+        insights.push(`${topTeam.team} team leads with ${topTeam.count} issues this month, mainly "${topTeam.top_issue_type || 'various'}"`);
+      }
+
+      if (monthChange > 20) {
+        insights.push(`Issues increased by ${monthChange}% compared to last month`);
+      } else if (monthChange < -20) {
+        insights.push(`Issues decreased by ${Math.abs(monthChange)}% compared to last month - good progress!`);
+      }
+
+      const topSources = topSourcesResult.rows;
+      if (topSources.length > 0) {
+        const sourceNames = topSources.slice(0, 2).map(s => s.source).join(' and ');
+        insights.push(`Most issues come from ${sourceNames} sources`);
+      }
+
+      const topIssueTypes = issueTypeResult.rows.slice(0, 2);
+      if (topIssueTypes.length > 0) {
+        const total = issueTypeResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
+        const topPercent = total > 0 ? Math.round((parseInt(topIssueTypes[0].count, 10) / total) * 100) : 0;
+        if (topPercent > 30) {
+          insights.push(`"${topIssueTypes[0].issue_type}" accounts for ${topPercent}% of all issues`);
+        }
+      }
+
+      return reply.send({
+        issue_types: issueTypeResult.rows.map(r => ({
+          type: r.issue_type,
+          count: parseInt(r.count, 10),
+        })),
+        comparison: {
+          this_month: thisMonth,
+          last_month: lastMonth,
+          change_percent: monthChange,
+          this_month_critical: thisMonthCritical,
+          last_month_critical: lastMonthCritical,
+          critical_change_percent: criticalChange,
+        },
+        insights,
+        top_teams: topTeams.map(t => ({
+          team: t.team,
+          count: parseInt(t.count, 10),
+          top_issue: t.top_issue_type,
+        })),
+        top_sources: topSources.map(s => ({
+          source: s.source,
+          count: parseInt(s.count, 10),
+        })),
+      });
+    }
+  );
+
   // Team Performance with trends
   fastify.get(
     '/api/dashboard/team-analytics',

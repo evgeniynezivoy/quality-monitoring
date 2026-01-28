@@ -17,6 +17,8 @@ import {
   Package,
   ChevronDown,
   ChevronUp,
+  Lightbulb,
+  BarChart3,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -26,6 +28,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 
 // Types
@@ -58,6 +63,27 @@ interface TeamAnalytics {
   avg_rate: number | null;
   status: 'improving' | 'declining' | 'stable';
 }
+
+interface IssueAnalytics {
+  issue_types: { type: string; count: number }[];
+  comparison: {
+    this_month: number;
+    last_month: number;
+    change_percent: number;
+    this_month_critical: number;
+    last_month_critical: number;
+    critical_change_percent: number;
+  };
+  insights: string[];
+  top_teams: { team: string; count: number; top_issue: string }[];
+  top_sources: { source: string; count: number }[];
+}
+
+// Pie chart colors
+const PIE_COLORS = [
+  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
+  '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6'
+];
 
 // Stat Card Component
 function StatCard({
@@ -336,6 +362,11 @@ export function DashboardPage() {
     queryFn: dashboardApi.teamAnalytics,
   });
 
+  const { data: issueAnalyticsData } = useQuery({
+    queryKey: ['dashboard', 'issue-analytics'],
+    queryFn: dashboardApi.issueAnalytics,
+  });
+
   if (overviewLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -346,6 +377,7 @@ export function DashboardPage() {
 
   const ccAnalytics: CCAnalytics[] = ccAnalyticsData?.cc_analytics || [];
   const teamAnalytics: TeamAnalytics[] = teamAnalyticsData?.team_analytics || [];
+  const issueAnalytics: IssueAnalytics | null = issueAnalyticsData || null;
 
   // Get unique teams for filter
   const teams = [...new Set(ccAnalytics.map(cc => cc.team))].filter(t => t !== 'Unknown');
@@ -506,6 +538,186 @@ export function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Issue Type Distribution & Insights */}
+        {issueAnalytics && (
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Issue Type Donut Chart */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 className="w-5 h-5 text-gray-400" />
+                <h3 className="text-lg font-semibold text-gray-900">Issues by Type</h3>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">This month distribution</p>
+
+              {issueAnalytics.issue_types.length > 0 ? (
+                <>
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={issueAnalytics.issue_types}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={75}
+                          paddingAngle={2}
+                          dataKey="count"
+                          nameKey="type"
+                        >
+                          {issueAnalytics.issue_types.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number) => [value, 'Issues']}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {/* Legend */}
+                  <div className="mt-3 space-y-1.5 max-h-[120px] overflow-y-auto">
+                    {issueAnalytics.issue_types.slice(0, 5).map((item, index) => (
+                      <div key={item.type} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                          />
+                          <span className="text-gray-600 truncate max-w-[120px]" title={item.type}>
+                            {item.type}
+                          </span>
+                        </div>
+                        <span className="font-medium text-gray-900">{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-gray-400">
+                  No data for this month
+                </div>
+              )}
+            </div>
+
+            {/* Month Comparison */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Month Comparison</h3>
+
+              <div className="space-y-4">
+                {/* Total Issues */}
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-500">Total Issues</span>
+                    <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${
+                      issueAnalytics.comparison.change_percent > 0
+                        ? 'bg-rose-100 text-rose-700'
+                        : issueAnalytics.comparison.change_percent < 0
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {issueAnalytics.comparison.change_percent > 0 ? '+' : ''}
+                      {issueAnalytics.comparison.change_percent}%
+                    </span>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {issueAnalytics.comparison.this_month}
+                      </p>
+                      <p className="text-xs text-gray-400">This Month</p>
+                    </div>
+                    <div className="text-gray-300 mb-1">vs</div>
+                    <div>
+                      <p className="text-lg font-semibold text-gray-400">
+                        {issueAnalytics.comparison.last_month}
+                      </p>
+                      <p className="text-xs text-gray-400">Last Month</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Critical Issues */}
+                <div className="p-4 bg-rose-50 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-rose-600">Critical Issues</span>
+                    <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${
+                      issueAnalytics.comparison.critical_change_percent > 0
+                        ? 'bg-rose-200 text-rose-800'
+                        : issueAnalytics.comparison.critical_change_percent < 0
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {issueAnalytics.comparison.critical_change_percent > 0 ? '+' : ''}
+                      {issueAnalytics.comparison.critical_change_percent}%
+                    </span>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div>
+                      <p className="text-2xl font-bold text-rose-700">
+                        {issueAnalytics.comparison.this_month_critical}
+                      </p>
+                      <p className="text-xs text-rose-400">This Month</p>
+                    </div>
+                    <div className="text-rose-200 mb-1">vs</div>
+                    <div>
+                      <p className="text-lg font-semibold text-rose-300">
+                        {issueAnalytics.comparison.last_month_critical}
+                      </p>
+                      <p className="text-xs text-rose-300">Last Month</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Insights */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                <Lightbulb className="w-5 h-5 text-amber-500" />
+                <h3 className="text-lg font-semibold text-gray-900">Insights</h3>
+              </div>
+
+              {issueAnalytics.insights.length > 0 ? (
+                <div className="space-y-3">
+                  {issueAnalytics.insights.map((insight, index) => (
+                    <div key={index} className="flex gap-3 p-3 bg-amber-50 rounded-lg">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 flex-shrink-0" />
+                      <p className="text-sm text-gray-700">{insight}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">No insights available yet</p>
+              )}
+
+              {/* Top Sources */}
+              {issueAnalytics.top_sources.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-xs font-medium text-gray-500 mb-2">Top Sources This Month</p>
+                  <div className="flex flex-wrap gap-2">
+                    {issueAnalytics.top_sources.map((source) => (
+                      <span
+                        key={source.source}
+                        className={`px-2 py-1 rounded-md text-xs font-medium ${
+                          source.source === 'LV' ? 'bg-blue-100 text-blue-700' :
+                          source.source === 'CS' ? 'bg-purple-100 text-purple-700' :
+                          source.source === 'Block' ? 'bg-orange-100 text-orange-700' :
+                          source.source === 'CDT_CW' ? 'bg-cyan-100 text-cyan-700' :
+                          source.source === 'QA' ? 'bg-pink-100 text-pink-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {source.source}: {source.count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Team Performance */}
         <div>

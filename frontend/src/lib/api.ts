@@ -73,6 +73,10 @@ export const dashboardApi = {
     const response = await api.get('/api/dashboard/team-analytics');
     return response.data;
   },
+  issueAnalytics: async () => {
+    const response = await api.get('/api/dashboard/issue-analytics');
+    return response.data;
+  },
 };
 
 export const usersApi = {
