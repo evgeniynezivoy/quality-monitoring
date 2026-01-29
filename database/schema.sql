@@ -112,6 +112,7 @@ CREATE TABLE returns (
     total_leads INTEGER DEFAULT 0,
 
     cc_fault INTEGER,  -- значение из колонки AP (должно быть 0)
+    initial_returns_number INTEGER DEFAULT 0,  -- общее количество возвратов в строке
 
     raw_data JSONB,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
