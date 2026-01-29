@@ -42,6 +42,8 @@ const OPERATIONS_TEAM = [
   'nezhivoy@infuseua.com',
   'pytonia@infuseua.com',
   'markovych@infuseua.com',
+  'shchenina@infuseua.com',
+  'podorvanova@infuse.com',
 ];
 
 // Check if today is a weekend (should skip sending)
