@@ -201,6 +201,110 @@ CREATE INDEX idx_sync_logs_started ON sync_logs(started_at DESC);
 | rows_updated | INTEGER | Existing rows updated |
 | error_message | TEXT | Error details if failed |
 
+### returns
+
+Stores lead returns data synced from Returns tracker Google Sheet.
+
+```sql
+CREATE TABLE returns (
+    id SERIAL PRIMARY KEY,
+    return_date DATE NOT NULL,
+    client_name VARCHAR(255),
+    block VARCHAR(100),
+    cid VARCHAR(100) NOT NULL,
+    cc_abbreviation VARCHAR(50),
+    cc_user_id INTEGER REFERENCES users(id),
+    cc_name VARCHAR(255),
+    team_lead_name VARCHAR(255),
+    reasons JSONB DEFAULT '[]',
+    initial_returns_number INTEGER DEFAULT 0,
+    cc_fault INTEGER DEFAULT 0,
+    row_hash VARCHAR(64) UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_returns_date ON returns(return_date);
+CREATE INDEX idx_returns_cc_user ON returns(cc_user_id);
+CREATE INDEX idx_returns_cid ON returns(cid);
+CREATE INDEX idx_returns_cc_fault ON returns(cc_fault);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | SERIAL | Auto-increment ID |
+| return_date | DATE | Date of return |
+| client_name | VARCHAR(255) | Client/company name |
+| block | VARCHAR(100) | Block identifier (DA block, DU block, etc.) |
+| cid | VARCHAR(100) | Campaign ID |
+| cc_abbreviation | VARCHAR(50) | CC abbreviation from sheet |
+| cc_user_id | INTEGER | FK to users (linked by abbreviation) |
+| cc_name | VARCHAR(255) | CC full name |
+| team_lead_name | VARCHAR(255) | Team lead abbreviation |
+| reasons | JSONB | Array of {reason, count} objects |
+| initial_returns_number | INTEGER | Total number of returned leads |
+| cc_fault | INTEGER | Number of CC fault returns |
+| row_hash | VARCHAR(64) | MD5 hash for deduplication |
+
+### returns_sync_logs
+
+Audit log for returns synchronization.
+
+```sql
+CREATE TABLE returns_sync_logs (
+    id SERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    status VARCHAR(20) CHECK (status IN ('running', 'success', 'failed')),
+    rows_fetched INTEGER DEFAULT 0,
+    rows_with_cc_fault INTEGER DEFAULT 0,
+    rows_inserted INTEGER DEFAULT 0,
+    rows_updated INTEGER DEFAULT 0,
+    error_message TEXT
+);
+
+CREATE INDEX idx_returns_sync_started ON returns_sync_logs(started_at DESC);
+```
+
+### email_logs
+
+Stores email report sending history.
+
+```sql
+CREATE TABLE email_logs (
+    id SERIAL PRIMARY KEY,
+    report_type VARCHAR(50) NOT NULL,
+    report_date DATE NOT NULL,
+    recipient_email VARCHAR(255) NOT NULL,
+    recipient_name VARCHAR(255),
+    subject VARCHAR(500),
+    issues_count INTEGER DEFAULT 0,
+    status VARCHAR(20) CHECK (status IN ('sent', 'failed')),
+    error_message TEXT,
+    sent_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_email_logs_date ON email_logs(report_date);
+CREATE INDEX idx_email_logs_sent ON email_logs(sent_at DESC);
+```
+
+### refresh_tokens
+
+Stores JWT refresh tokens for authentication.
+
+```sql
+CREATE TABLE refresh_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(500) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
+```
+
 ## Common Queries
 
 ### Get issues for a user (role-based)

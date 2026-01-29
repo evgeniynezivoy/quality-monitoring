@@ -228,14 +228,15 @@ POST   /auth/logout          # Logout (invalidate token)
 
 ### Dashboard Analytics
 ```
-GET    /api/dashboard/overview      # KPI summary cards
-GET    /api/dashboard/trends        # 30-day time series
-GET    /api/dashboard/by-team       # Team-level aggregation
-GET    /api/dashboard/by-cc         # CC-level aggregation
-GET    /api/dashboard/by-source     # Source distribution
-GET    /api/dashboard/cc-analytics  # Detailed CC analytics
-GET    /api/dashboard/team-analytics # Team performance
-GET    /api/dashboard/issue-analytics # Issue type analysis
+GET    /api/dashboard/overview           # KPI summary cards
+GET    /api/dashboard/trends             # 30-day time series
+GET    /api/dashboard/by-team            # Team-level aggregation
+GET    /api/dashboard/by-cc              # CC-level aggregation
+GET    /api/dashboard/by-source          # Source distribution
+GET    /api/dashboard/cc-analytics       # Detailed CC analytics (supports ?year=&month=)
+GET    /api/dashboard/team-analytics     # Team performance
+GET    /api/dashboard/issue-analytics    # Issue type analysis
+GET    /api/dashboard/available-periods  # Available years/months for filtering
 ```
 
 ### Returns Analytics
@@ -392,6 +393,14 @@ curl -X POST http://localhost:3000/api/returns/sync
 | [Google Sheets Sync](docs/SYNC.md) | Data sources, column mappings |
 
 ## Changelog
+
+### v1.3.3 (January 29, 2026)
+- **CC Fault Details**: Fixed expandable row to show reasons breakdown (Industry doesn't fit, Job Function doesn't fit, etc.) with CIDs
+- **Historical Filtering**: Added year/month period selector to Issues tab (similar to Returns tab)
+- **CID Tooltips**: Added hover tooltip on "+X more" to see all CIDs
+- **KPI Cards**: Fixed layout with CSS Grid for equal widths across all cards
+- **API**: Added `/api/dashboard/available-periods` endpoint for historical data
+- **API**: Updated `/api/dashboard/cc-analytics` to support year/month filtering
 
 ### v1.3.2 (January 29, 2026)
 - Migrated to new server (46.62.208.26)

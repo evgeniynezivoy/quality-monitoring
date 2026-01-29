@@ -183,9 +183,15 @@ Get issue counts grouped by source.
 
 ### GET /api/dashboard/cc-analytics
 
-Get CC performance with week-over-week trends.
+Get CC performance with week-over-week trends. Supports historical filtering by year/month.
 
-**Response (200):**
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| year | number | - | Filter by year (e.g., 2025, 2026) |
+| month | number | - | Filter by month (1-12), requires year |
+
+**Response (200) - Current Period (no params):**
 ```json
 {
   "cc_analytics": [
@@ -208,10 +214,49 @@ Get CC performance with week-over-week trends.
 }
 ```
 
+**Response (200) - Historical Period (with year/month):**
+```json
+{
+  "period_label": "July 2025",
+  "cc_analytics": [
+    {
+      "cc_id": 5,
+      "cc_name": "Emmanuel Adinlewa",
+      "team": "LV",
+      "team_lead": "Daria Chernoskutova",
+      "total_issues": 45,
+      "this_week": 0,
+      "last_week": 0,
+      "week_trend": 0,
+      "this_month": 45,
+      "last_month": 0,
+      "month_trend": 0,
+      "sources": ["LV"],
+      "status": "stable"
+    }
+  ]
+}
+```
+
 **Status values:**
 - `improving` - fewer issues than last week (week_trend < 0)
 - `declining` - more issues than last week (week_trend > 0)
 - `stable` - same as last week (week_trend = 0)
+
+### GET /api/dashboard/available-periods
+
+Get available years and months for historical filtering.
+
+**Response (200):**
+```json
+{
+  "years": [2026, 2025],
+  "months_by_year": {
+    "2026": [1],
+    "2025": [7, 8, 9, 10, 11, 12]
+  }
+}
+```
 
 ### GET /api/dashboard/team-analytics
 
