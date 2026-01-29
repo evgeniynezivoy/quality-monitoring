@@ -453,10 +453,11 @@ export async function returnsRoutes(fastify: FastifyInstance) {
           success: true,
           ...result,
         });
-      } catch (err: any) {
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         return reply.status(500).send({
           success: false,
-          error: err.message,
+          error: message,
         });
       }
     }

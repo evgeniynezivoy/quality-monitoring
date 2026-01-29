@@ -17,8 +17,10 @@ pool.on('error', (err) => {
   process.exit(-1);
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function query<T = any>(
   text: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params?: any[]
 ): Promise<QueryResult<T>> {
   const start = Date.now();

@@ -12,6 +12,7 @@ export async function getIssues(
 
   const roleFilter = buildRoleWhereClause(user);
   const whereClauses: string[] = [roleFilter.clause];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const params: any[] = [...roleFilter.params];
   let paramIndex = params.length + 1;
 
@@ -125,6 +126,7 @@ export async function getIssueStats(
   by_source: { source: string; count: number }[];
 }> {
   const roleFilter = buildRoleWhereClause(user);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const params: any[] = [...roleFilter.params];
   let paramIndex = params.length + 1;
 

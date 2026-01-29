@@ -1,8 +1,8 @@
 import { JwtPayload } from '../types/index.js';
 
 export interface QueryBuilder {
-  where(column: string, value: any): QueryBuilder;
-  whereIn(column: string, values: any[]): QueryBuilder;
+  where(column: string, value: unknown): QueryBuilder;
+  whereIn(column: string, values: unknown[]): QueryBuilder;
 }
 
 export function getDataFilter(user: JwtPayload): {
@@ -33,6 +33,7 @@ export function buildRoleWhereClause(
   user: JwtPayload,
   ccColumn: string = 'i.responsible_cc_id',
   userTableAlias: string = 'u'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): { clause: string; params: any[] } {
   const filter = getDataFilter(user);
 

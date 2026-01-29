@@ -13,45 +13,33 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       const roleFilter = buildRoleWhereClause(request.user);
       const params = roleFilter.params;
 
-      const [totalResult, todayResult, weekResult, monthResult, criticalResult] = await Promise.all([
-        query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM issues i
-           LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause}`,
-          params
-        ),
-        query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM issues i
-           LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause} AND i.issue_date = CURRENT_DATE`,
-          params
-        ),
-        query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM issues i
-           LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause} AND i.issue_date >= CURRENT_DATE - INTERVAL '7 days'`,
-          params
-        ),
-        query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM issues i
-           LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause} AND i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)`,
-          params
-        ),
-        query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM issues i
-           LEFT JOIN users u ON i.responsible_cc_id = u.id
-           WHERE ${roleFilter.clause} AND i.issue_rate = 3`,
-          params
-        ),
-      ]);
+      // Consolidated query: 5 COUNT operations in a single query using FILTER
+      const result = await query<{
+        total_count: string;
+        today_count: string;
+        week_count: string;
+        month_count: string;
+        critical_count: string;
+      }>(
+        `SELECT
+           COUNT(*) as total_count,
+           COUNT(*) FILTER (WHERE i.issue_date = CURRENT_DATE) as today_count,
+           COUNT(*) FILTER (WHERE i.issue_date >= CURRENT_DATE - INTERVAL '7 days') as week_count,
+           COUNT(*) FILTER (WHERE i.issue_date >= DATE_TRUNC('month', CURRENT_DATE)) as month_count,
+           COUNT(*) FILTER (WHERE i.issue_rate = 3) as critical_count
+         FROM issues i
+         LEFT JOIN users u ON i.responsible_cc_id = u.id
+         WHERE ${roleFilter.clause}`,
+        params
+      );
 
+      const row = result.rows[0];
       return reply.send({
-        total_issues: parseInt(totalResult.rows[0]?.count || '0', 10),
-        issues_today: parseInt(todayResult.rows[0]?.count || '0', 10),
-        issues_this_week: parseInt(weekResult.rows[0]?.count || '0', 10),
-        issues_this_month: parseInt(monthResult.rows[0]?.count || '0', 10),
-        critical_issues: parseInt(criticalResult.rows[0]?.count || '0', 10),
+        total_issues: parseInt(row?.total_count || '0', 10),
+        issues_today: parseInt(row?.today_count || '0', 10),
+        issues_this_week: parseInt(row?.week_count || '0', 10),
+        issues_this_month: parseInt(row?.month_count || '0', 10),
+        critical_issues: parseInt(row?.critical_count || '0', 10),
       });
     }
   );

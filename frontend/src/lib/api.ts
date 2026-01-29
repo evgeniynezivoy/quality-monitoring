@@ -11,6 +11,58 @@ const api = axios.create({
 
 export default api;
 
+// Type definitions for API parameters
+export interface IssueListParams {
+  page?: number;
+  limit?: number;
+  date_from?: string;
+  date_to?: string;
+  source?: string;
+  team?: string;
+  team_lead_id?: number;
+  responsible_cc_id?: number;
+  issue_rate?: number;
+  issue_category?: 'client' | 'internal';
+  search?: string;
+}
+
+export interface UsersListParams {
+  page?: number;
+  limit?: number;
+  team?: string;
+  role?: 'admin' | 'team_lead' | 'cc';
+  is_active?: boolean;
+  search?: string;
+}
+
+export interface ReturnsListParams {
+  page?: number;
+  limit?: number;
+  date_from?: string;
+  date_to?: string;
+  cc_user_id?: number;
+  block?: string;
+  search?: string;
+}
+
+export interface CreateUserData {
+  email: string;
+  password: string;
+  full_name: string;
+  team: string;
+  role?: 'admin' | 'team_lead' | 'cc';
+  team_lead_id?: number;
+}
+
+export interface UpdateUserData {
+  email?: string;
+  full_name?: string;
+  team?: string;
+  role?: 'admin' | 'team_lead' | 'cc';
+  team_lead_id?: number | null;
+  is_active?: boolean;
+}
+
 // API functions
 export const authApi = {
   login: async (email: string, password: string) => {
@@ -30,7 +82,7 @@ export const authApi = {
 };
 
 export const issuesApi = {
-  list: async (params: Record<string, any>) => {
+  list: async (params: IssueListParams) => {
     const response = await api.get('/api/issues', { params });
     return response.data;
   },
@@ -80,7 +132,7 @@ export const dashboardApi = {
 };
 
 export const usersApi = {
-  list: async (params?: Record<string, any>) => {
+  list: async (params?: UsersListParams) => {
     const response = await api.get('/api/users', { params });
     return response.data;
   },
@@ -122,11 +174,11 @@ export const adminApi = {
     const response = await api.get('/api/admin/users');
     return response.data;
   },
-  createUser: async (data: any) => {
+  createUser: async (data: CreateUserData) => {
     const response = await api.post('/api/admin/users', data);
     return response.data;
   },
-  updateUser: async (id: number, data: any) => {
+  updateUser: async (id: number, data: UpdateUserData) => {
     const response = await api.put(`/api/admin/users/${id}`, data);
     return response.data;
   },
@@ -141,7 +193,7 @@ export const adminApi = {
 };
 
 export const returnsApi = {
-  list: async (params?: Record<string, any>) => {
+  list: async (params?: ReturnsListParams) => {
     const response = await api.get('/api/returns', { params });
     return response.data;
   },

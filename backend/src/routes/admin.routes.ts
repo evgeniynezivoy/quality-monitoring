@@ -62,8 +62,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
           team_lead_id: body.data.team_lead_id ?? undefined,
         });
         return reply.status(201).send(user);
-      } catch (error: any) {
-        if (error.code === '23505') {
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && (error as { code: string }).code === '23505') {
           return reply.status(409).send({ error: 'Email already exists' });
         }
         throw error;
@@ -152,7 +152,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
 
       const fields: string[] = [];
-      const values: any[] = [];
+      const values: unknown[] = [];
       let paramIndex = 1;
 
       for (const [key, value] of Object.entries(body.data)) {
@@ -198,8 +198,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const data = await fetchSheetData(spreadsheetId, gid || '0');
         return reply.send(data);
-      } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return reply.status(500).send({ error: message });
       }
     }
   );

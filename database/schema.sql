@@ -155,6 +155,12 @@ CREATE INDEX idx_returns_cc_user ON returns(cc_user_id);
 CREATE INDEX idx_returns_cc_abbr ON returns(cc_abbreviation);
 CREATE INDEX idx_returns_cc_fault ON returns(cc_fault);
 
+-- Performance indexes for common query patterns
+CREATE INDEX idx_issues_date_cc ON issues(issue_date DESC, responsible_cc_id);
+CREATE INDEX idx_issues_date_rate ON issues(issue_date DESC, issue_rate);
+CREATE INDEX idx_returns_cc_user_date ON returns(cc_user_id, return_date DESC);
+CREATE INDEX idx_returns_reasons ON returns USING GIN (reasons);
+
 -- Trigger for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

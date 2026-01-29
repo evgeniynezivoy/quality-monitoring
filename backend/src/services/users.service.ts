@@ -80,7 +80,7 @@ export async function updateUser(
   }>
 ): Promise<User | null> {
   const fields: string[] = [];
-  const values: any[] = [];
+  const values: (string | number | boolean | null)[] = [];
   let paramIndex = 1;
 
   for (const [key, value] of Object.entries(data)) {
@@ -112,7 +112,7 @@ export async function getAllUsers(filters?: {
   is_active?: boolean;
 }): Promise<User[]> {
   let sql = 'SELECT id, email, full_name, team_lead_id, team, role, is_active, created_at, updated_at FROM users WHERE 1=1';
-  const params: any[] = [];
+  const params: (string | number | boolean)[] = [];
   let paramIndex = 1;
 
   if (filters?.team) {

@@ -138,17 +138,19 @@ export async function syncReturns(): Promise<ReturnsSyncResult> {
         } else {
           result.rows_updated++;
         }
-      } catch (err: any) {
-        result.errors.push(`Row ${i + 2}: ${err.message}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Row ${i + 2}: ${message}`);
       }
     }
 
     await updateSyncLog(logId, 'success', result);
     console.log('Returns sync completed:', result);
     return result;
-  } catch (err: any) {
-    result.errors.push(`Sync failed: ${err.message}`);
-    await updateSyncLog(logId, 'failed', result, err.message);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    result.errors.push(`Sync failed: ${message}`);
+    await updateSyncLog(logId, 'failed', result, message);
     console.error('Returns sync failed:', err);
     return result;
   }
@@ -286,8 +288,20 @@ async function updateSyncLog(
   );
 }
 
-export async function getReturnsSyncLogs(limit: number = 20): Promise<any[]> {
-  const result = await query(
+interface ReturnsSyncLog {
+  id: number;
+  started_at: Date;
+  completed_at: Date | null;
+  status: 'running' | 'success' | 'failed';
+  rows_fetched: number;
+  rows_with_cc_fault: number;
+  rows_inserted: number;
+  rows_updated: number;
+  error_message: string | null;
+}
+
+export async function getReturnsSyncLogs(limit: number = 20): Promise<ReturnsSyncLog[]> {
+  const result = await query<ReturnsSyncLog>(
     `SELECT * FROM returns_sync_logs ORDER BY started_at DESC LIMIT $1`,
     [limit]
   );

@@ -144,7 +144,7 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
 
     let skippedNoDate = 0;
     let skippedNoCC = 0;
-    const skippedSamples: any[] = [];
+    const skippedSamples: { reason: string; dateValue: string | null; row: Record<string, string> }[] = [];
 
     for (const row of sheetData.rows) {
       const dateValue = findColumnValue(row, COLUMN_MAPPINGS.issue_date);
@@ -292,18 +292,23 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
 
 export async function syncAllSources(): Promise<SyncLog[]> {
   const sources = await getSources();
-  const results: SyncLog[] = [];
 
-  for (const source of sources) {
-    try {
-      const result = await syncSource(source.id);
-      results.push(result);
-    } catch (error) {
-      console.error(`Error syncing source ${source.name}:`, error);
+  // Process all sources in parallel for better performance
+  const results = await Promise.allSettled(
+    sources.map(source => syncSource(source.id))
+  );
+
+  // Extract successful results and log errors
+  const syncLogs: SyncLog[] = [];
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      syncLogs.push(result.value);
+    } else {
+      console.error(`Error syncing source ${sources[index].name}:`, result.reason);
     }
-  }
+  });
 
-  return results;
+  return syncLogs;
 }
 
 export async function getSyncLogs(limit: number = 50): Promise<SyncLog[]> {

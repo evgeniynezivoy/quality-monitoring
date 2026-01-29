@@ -100,8 +100,9 @@ export async function syncRoutes(fastify: FastifyInstance) {
           message: 'Team roster sync completed',
           ...result,
         });
-      } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return reply.status(500).send({ error: message });
       }
     }
   );
@@ -114,8 +115,9 @@ export async function syncRoutes(fastify: FastifyInstance) {
       try {
         const structure = await getTeamStructure();
         return reply.send({ teams: structure });
-      } catch (error: any) {
-        return reply.status(500).send({ error: error.message });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return reply.status(500).send({ error: message });
       }
     }
   );

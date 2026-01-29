@@ -91,3 +91,101 @@ export interface DashboardStats {
   issues_by_source: { source: string; count: number }[];
   recent_trend: { date: string; count: number }[];
 }
+
+// Query parameter types for API endpoints
+export interface IssueQueryParams {
+  page?: number;
+  limit?: number;
+  date_from?: string;
+  date_to?: string;
+  source?: string;
+  team?: string;
+  team_lead_id?: number;
+  responsible_cc_id?: number;
+  issue_rate?: number;
+  issue_category?: 'client' | 'internal';
+  search?: string;
+}
+
+export interface ReturnsQueryParams {
+  page?: number;
+  limit?: number;
+  date_from?: string;
+  date_to?: string;
+  cc_user_id?: number;
+  block?: string;
+  search?: string;
+}
+
+export interface UsersQueryParams {
+  page?: number;
+  limit?: number;
+  team?: string;
+  role?: 'admin' | 'team_lead' | 'cc';
+  is_active?: boolean;
+  search?: string;
+}
+
+export interface DashboardQueryParams {
+  days?: number;
+  limit?: number;
+}
+
+export interface SyncQueryParams {
+  limit?: number;
+}
+
+// API Response types
+export interface DashboardOverview {
+  total_issues: number;
+  issues_today: number;
+  issues_this_week: number;
+  issues_this_month: number;
+  critical_issues: number;
+}
+
+export interface TrendData {
+  date: string;
+  count: number;
+}
+
+export interface TeamStats {
+  team: string;
+  count: number;
+  rate_1: number;
+  rate_2: number;
+  rate_3: number;
+}
+
+export interface CCStats {
+  cc_id: number;
+  cc_name: string;
+  team: string;
+  count: number;
+  rate_avg: number | null;
+}
+
+export interface SourceStats {
+  source: string;
+  display_name: string;
+  count: number;
+}
+
+// Create/Update user data
+export interface CreateUserData {
+  email: string;
+  password: string;
+  full_name: string;
+  team: string;
+  role?: 'admin' | 'team_lead' | 'cc';
+  team_lead_id?: number;
+}
+
+export interface UpdateUserData {
+  email?: string;
+  full_name?: string;
+  team?: string;
+  role?: 'admin' | 'team_lead' | 'cc';
+  team_lead_id?: number | null;
+  is_active?: boolean;
+}

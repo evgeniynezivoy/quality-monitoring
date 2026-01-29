@@ -222,8 +222,8 @@ export async function authRoutes(fastify: FastifyInstance) {
         role: user.role,
         team: user.team,
       });
-    } catch (error: any) {
-      if (error.code === '23505') {
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && (error as { code: string }).code === '23505') {
         return reply.status(409).send({ error: 'Email already exists' });
       }
       throw error;

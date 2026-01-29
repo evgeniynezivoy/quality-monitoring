@@ -91,8 +91,44 @@ export async function syncTeamRoster(): Promise<TeamSyncResult> {
           );
           result.team_leads_created++;
         }
-      } catch (err: any) {
-        result.errors.push(`Team lead ${email}: ${err.message}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Team lead ${email}: ${message}`);
+      }
+    }
+
+    // Batch lookup: Get all team lead IDs and existing CC users in two queries
+    const allTlEmails = [...new Set(members
+      .filter(m => m.tl_email)
+      .map(m => m.tl_email.toLowerCase().trim())
+    )];
+
+    const allCcEmails = [...new Set(members
+      .filter(m => m.cc_email)
+      .map(m => m.cc_email.toLowerCase().trim())
+    )];
+
+    // Batch fetch team lead IDs
+    const teamLeadIdMap = new Map<string, number>();
+    if (allTlEmails.length > 0) {
+      const tlResult = await query<{ email: string; id: number }>(
+        `SELECT LOWER(email) as email, id FROM users WHERE LOWER(email) = ANY($1)`,
+        [allTlEmails]
+      );
+      for (const row of tlResult.rows) {
+        teamLeadIdMap.set(row.email, row.id);
+      }
+    }
+
+    // Batch fetch existing CC users
+    const existingCCMap = new Map<string, { id: number; role: string }>();
+    if (allCcEmails.length > 0) {
+      const ccResult = await query<{ email: string; id: number; role: string }>(
+        `SELECT LOWER(email) as email, id, role FROM users WHERE LOWER(email) = ANY($1)`,
+        [allCcEmails]
+      );
+      for (const row of ccResult.rows) {
+        existingCCMap.set(row.email, { id: row.id, role: row.role });
       }
     }
 
@@ -104,34 +140,21 @@ export async function syncTeamRoster(): Promise<TeamSyncResult> {
       const tlEmail = member.tl_email?.toLowerCase().trim();
 
       try {
-        // Get team lead ID
-        let teamLeadId: number | null = null;
-        if (tlEmail) {
-          const tlResult = await query(
-            'SELECT id FROM users WHERE LOWER(email) = $1',
-            [tlEmail]
-          );
-          if (tlResult.rows.length > 0) {
-            teamLeadId = tlResult.rows[0].id;
-          }
-        }
+        // Get team lead ID from pre-fetched map
+        const teamLeadId = tlEmail ? teamLeadIdMap.get(tlEmail) ?? null : null;
 
         // Determine team from team lead name or CC code
         const team = determineTeam(member.cc_tl, member.cc);
 
-        const existing = await query(
-          'SELECT id, role FROM users WHERE LOWER(email) = $1',
-          [ccEmail]
-        );
-
         // Get CC abbreviation
         const ccAbbreviation = member.cc?.trim() || null;
 
-        if (existing.rows.length > 0) {
+        const existing = existingCCMap.get(ccEmail);
+
+        if (existing) {
           // Don't downgrade team leads or admins to CC
-          const currentRole = existing.rows[0].role;
-          const newRole = currentRole === 'admin' || currentRole === 'team_lead'
-            ? currentRole
+          const newRole = existing.role === 'admin' || existing.role === 'team_lead'
+            ? existing.role
             : 'cc';
 
           await query(
@@ -154,14 +177,16 @@ export async function syncTeamRoster(): Promise<TeamSyncResult> {
           );
           result.ccs_created++;
         }
-      } catch (err: any) {
-        result.errors.push(`CC ${ccEmail}: ${err.message}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`CC ${ccEmail}: ${message}`);
       }
     }
 
     return result;
-  } catch (err: any) {
-    result.errors.push(`Sync failed: ${err.message}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    result.errors.push(`Sync failed: ${message}`);
     return result;
   }
 }
