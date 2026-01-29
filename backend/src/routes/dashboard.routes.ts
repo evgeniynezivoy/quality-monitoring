@@ -211,9 +211,79 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
     { preHandler: authenticate },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const roleFilter = buildRoleWhereClause(request.user);
-      const params = roleFilter.params;
+      const queryParams = request.query as Record<string, string>;
+      const year = queryParams.year ? parseInt(queryParams.year, 10) : null;
+      const month = queryParams.month ? parseInt(queryParams.month, 10) : null;
 
-      // Get CC stats with current week, last week, current month, quarter comparison
+      // Build date filter for historical data
+      let dateFilter = '';
+      const params = [...roleFilter.params];
+
+      if (year && month) {
+        // Specific month in a year
+        params.push(year, month);
+        dateFilter = ` AND EXTRACT(YEAR FROM i.issue_date) = $${params.length - 1} AND EXTRACT(MONTH FROM i.issue_date) = $${params.length}`;
+      } else if (year) {
+        // Full year
+        params.push(year);
+        dateFilter = ` AND EXTRACT(YEAR FROM i.issue_date) = $${params.length}`;
+      }
+
+      // If historical filter is applied, use simplified query
+      if (year) {
+        const result = await query<{
+          cc_id: number;
+          cc_name: string;
+          team: string;
+          team_lead_name: string;
+          total_issues: string;
+          sources: string[];
+        }>(
+          `SELECT
+            COALESCE(i.responsible_cc_id, 0) as cc_id,
+            COALESCE(u.full_name, i.responsible_cc_name, 'Unknown') as cc_name,
+            COALESCE(u.team, 'Unknown') as team,
+            COALESCE(tl.full_name, 'N/A') as team_lead_name,
+            COUNT(*) as total_issues,
+            ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) as sources
+          FROM issues i
+          LEFT JOIN users u ON i.responsible_cc_id = u.id
+          LEFT JOIN users tl ON u.team_lead_id = tl.id
+          LEFT JOIN issue_sources s ON i.source_id = s.id
+          WHERE ${roleFilter.clause}${dateFilter}
+          GROUP BY COALESCE(i.responsible_cc_id, 0), COALESCE(u.full_name, i.responsible_cc_name, 'Unknown'), COALESCE(u.team, 'Unknown'), COALESCE(tl.full_name, 'N/A')
+          ORDER BY total_issues DESC`,
+          params
+        );
+
+        const periodLabel = month
+          ? `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][month - 1]} ${year}`
+          : `Full Year ${year}`;
+
+        return reply.send({
+          period_label: periodLabel,
+          cc_analytics: result.rows.map((r) => ({
+            cc_id: r.cc_id,
+            cc_name: r.cc_name,
+            team: r.team,
+            team_lead: r.team_lead_name,
+            total_issues: parseInt(r.total_issues, 10),
+            this_week: 0,
+            last_week: 0,
+            week_trend: 0,
+            this_month: parseInt(r.total_issues, 10),
+            last_month: 0,
+            month_trend: 0,
+            this_quarter: 0,
+            last_quarter: 0,
+            quarter_trend: 0,
+            sources: r.sources || [],
+            status: 'stable' as const,
+          })),
+        });
+      }
+
+      // Default: current period with trends
       const result = await query<{
         cc_id: number;
         cc_name: string;
@@ -519,6 +589,51 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
             status: weekTrend < -10 ? 'improving' : weekTrend > 10 ? 'declining' : 'stable',
           };
         }),
+      });
+    }
+  );
+
+  // Available periods for filtering
+  fastify.get(
+    '/api/dashboard/available-periods',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const roleFilter = buildRoleWhereClause(request.user);
+      const params = roleFilter.params;
+
+      const result = await query<{ year: number; month: number }>(
+        `SELECT DISTINCT
+           EXTRACT(YEAR FROM i.issue_date)::int as year,
+           EXTRACT(MONTH FROM i.issue_date)::int as month
+         FROM issues i
+         LEFT JOIN users u ON i.responsible_cc_id = u.id
+         WHERE ${roleFilter.clause} AND i.issue_date IS NOT NULL
+         ORDER BY year DESC, month DESC`,
+        params
+      );
+
+      // Group months by year
+      const monthsByYear: Record<number, number[]> = {};
+      const years: number[] = [];
+
+      result.rows.forEach((row) => {
+        if (!monthsByYear[row.year]) {
+          monthsByYear[row.year] = [];
+          years.push(row.year);
+        }
+        if (!monthsByYear[row.year].includes(row.month)) {
+          monthsByYear[row.year].push(row.month);
+        }
+      });
+
+      // Sort months within each year
+      Object.keys(monthsByYear).forEach((year) => {
+        monthsByYear[parseInt(year, 10)].sort((a, b) => a - b);
+      });
+
+      return reply.send({
+        years: years.sort((a, b) => b - a),
+        months_by_year: monthsByYear,
       });
     }
   );

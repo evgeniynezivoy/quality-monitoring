@@ -33,6 +33,7 @@ import {
   ReturnsTabContent,
   type CCAnalytics,
 } from './components';
+import { IssueDatePeriodSelector, type IssueFilterParams } from './components/IssueDatePeriodSelector';
 
 interface TeamAnalytics {
   team: string;
@@ -72,6 +73,7 @@ export function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [period, setPeriod] = useState<Period>('week');
   const [showAllCC, setShowAllCC] = useState(false);
+  const [issueFilterParams, setIssueFilterParams] = useState<IssueFilterParams>({});
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['dashboard', 'overview'],
@@ -84,8 +86,8 @@ export function DashboardPage() {
   });
 
   const { data: ccAnalyticsData } = useQuery({
-    queryKey: ['dashboard', 'cc-analytics'],
-    queryFn: dashboardApi.ccAnalytics,
+    queryKey: ['dashboard', 'cc-analytics', issueFilterParams],
+    queryFn: () => dashboardApi.ccAnalytics(issueFilterParams),
   });
 
   const { data: teamAnalyticsData } = useQuery({
@@ -202,6 +204,9 @@ export function DashboardPage() {
         {/* Issues Tab Content */}
         {activeTab === 'issues' && (
           <>
+        {/* Historical Period Selector */}
+        <IssueDatePeriodSelector value={issueFilterParams} onChange={setIssueFilterParams} />
+
         {/* KPI Cards */}
         <div className="flex flex-wrap gap-6">
           <div className="flex-1 min-w-[200px]">
@@ -217,7 +222,7 @@ export function DashboardPage() {
             <StatCard
               title="This Week"
               value={overview?.issues_this_week || 0}
-              subtitle={`${improvingCount} fewer errors, ${decliningCount} more errors`}
+              subtitle={`${improvingCount} improving, ${decliningCount} declining`}
               icon={<Calendar className="w-6 h-6" />}
               trend={teamAnalytics.reduce((sum, t) => sum + t.week_trend, 0) / (teamAnalytics.length || 1)}
               color="emerald"

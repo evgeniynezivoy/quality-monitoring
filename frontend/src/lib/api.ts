@@ -117,8 +117,8 @@ export const dashboardApi = {
     const response = await api.get('/api/dashboard/by-source');
     return response.data;
   },
-  ccAnalytics: async () => {
-    const response = await api.get('/api/dashboard/cc-analytics');
+  ccAnalytics: async (params?: { year?: number; month?: number }) => {
+    const response = await api.get('/api/dashboard/cc-analytics', { params });
     return response.data;
   },
   teamAnalytics: async () => {
@@ -127,6 +127,10 @@ export const dashboardApi = {
   },
   issueAnalytics: async () => {
     const response = await api.get('/api/dashboard/issue-analytics');
+    return response.data;
+  },
+  availablePeriods: async () => {
+    const response = await api.get('/api/dashboard/available-periods');
     return response.data;
   },
 };
