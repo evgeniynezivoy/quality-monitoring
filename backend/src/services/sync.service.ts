@@ -143,6 +143,7 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
     let rowsUpdated = 0;
 
     let skippedNoDate = 0;
+    let skippedNoCC = 0;
     const skippedSamples: any[] = [];
 
     for (const row of sheetData.rows) {
@@ -157,6 +158,13 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
         continue; // Skip rows without valid date
       }
 
+      // Skip rows without responsible CC name (incomplete data)
+      const responsibleCC = findColumnValue(row, COLUMN_MAPPINGS.responsible_cc_name);
+      if (!responsibleCC || responsibleCC.trim() === '') {
+        skippedNoCC++;
+        continue; // Skip rows without responsible CC
+      }
+
       const issueType = findColumnValue(row, COLUMN_MAPPINGS.issue_type) || '-';
 
       const rowHash = generateRowHash(row, sourceId);
@@ -165,7 +173,7 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
         source_id: sourceId,
         external_row_hash: rowHash,
         issue_date: parsedDate,
-        responsible_cc_name: findColumnValue(row, COLUMN_MAPPINGS.responsible_cc_name),
+        responsible_cc_name: responsibleCC,
         cid: findColumnValue(row, COLUMN_MAPPINGS.cid),
         issue_type: issueType,
         comment: findColumnValue(row, COLUMN_MAPPINGS.comment),
@@ -219,8 +227,8 @@ export async function syncSource(sourceId: number): Promise<SyncLog> {
     }
 
     // Log skipped rows
-    if (skippedNoDate > 0) {
-      console.log(`Sync source ${sourceId}: Skipped ${skippedNoDate} rows (no date)`);
+    if (skippedNoDate > 0 || skippedNoCC > 0) {
+      console.log(`Sync source ${sourceId}: Skipped ${skippedNoDate} rows (no date), ${skippedNoCC} rows (no CC)`);
       if (skippedSamples.length > 0) {
         console.log('Skipped samples:', JSON.stringify(skippedSamples.slice(0, 3), null, 2));
       }
