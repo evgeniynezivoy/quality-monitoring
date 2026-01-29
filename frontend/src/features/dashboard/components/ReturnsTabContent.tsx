@@ -142,43 +142,35 @@ export function ReturnsTabContent() {
       <DatePeriodSelector value={dateParams} onChange={setDateParams} />
 
       {/* KPI Cards */}
-      <div className="flex flex-wrap gap-6">
-        <div className="flex-1 min-w-[200px]">
-          <StatCard
-            title="Total Returns"
-            value={overview?.total_returns?.toLocaleString() || 0}
-            subtitle="All returned leads"
-            icon={<Package className="w-6 h-6" />}
-            color="indigo"
-          />
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <StatCard
-            title="CC Fault"
-            value={overview?.total_cc_fault?.toLocaleString() || 0}
-            subtitle={`${overview?.cc_fault_percent || 0}% of returns`}
-            icon={<AlertTriangle className="w-6 h-6" />}
-            color="rose"
-          />
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <StatCard
-            title="This Week"
-            value={overview?.cc_fault_this_week || 0}
-            subtitle={`of ${overview?.returns_this_week || 0} returns (${overview?.cc_fault_percent_this_week || 0}%)`}
-            icon={<Calendar className="w-6 h-6" />}
-            color="emerald"
-          />
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <StatCard
-            title="This Month"
-            value={overview?.cc_fault_this_month || 0}
-            subtitle={`of ${overview?.returns_this_month || 0} returns (${overview?.cc_fault_percent_this_month || 0}%)`}
-            icon={<TrendingUp className="w-6 h-6" />}
-            color="amber"
-          />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Total Returns"
+          value={overview?.total_returns?.toLocaleString() || 0}
+          subtitle="All returned leads"
+          icon={<Package className="w-6 h-6" />}
+          color="indigo"
+        />
+        <StatCard
+          title="CC Fault"
+          value={overview?.total_cc_fault?.toLocaleString() || 0}
+          subtitle={`${overview?.cc_fault_percent || 0}% of returns`}
+          icon={<AlertTriangle className="w-6 h-6" />}
+          color="rose"
+        />
+        <StatCard
+          title="This Week"
+          value={overview?.cc_fault_this_week || 0}
+          subtitle={`of ${overview?.returns_this_week || 0} returns (${overview?.cc_fault_percent_this_week || 0}%)`}
+          icon={<Calendar className="w-6 h-6" />}
+          color="emerald"
+        />
+        <StatCard
+          title="This Month"
+          value={overview?.cc_fault_this_month || 0}
+          subtitle={`of ${overview?.returns_this_month || 0} returns (${overview?.cc_fault_percent_this_month || 0}%)`}
+          icon={<TrendingUp className="w-6 h-6" />}
+          color="amber"
+        />
       </div>
 
       {/* Trend Chart & Period Analytics Summary */}
