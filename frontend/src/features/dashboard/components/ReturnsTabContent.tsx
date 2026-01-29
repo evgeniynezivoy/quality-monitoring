@@ -38,7 +38,8 @@ interface CCData {
 interface ReturnItem {
   id: number;
   cid: string;
-  return_reason: string;
+  reasons: Array<{ count: number; reason: string }>;
+  cc_fault: number;
   return_date: string;
   block?: string;
 }
@@ -111,16 +112,21 @@ export function ReturnsTabContent() {
     setExpandedCCId(expandedCCId === ccId ? null : ccId);
   };
 
-  const groupReturnsByReason = (returns: ReturnItem[]) => {
+  const groupCCFaultsByReason = (returns: ReturnItem[]) => {
     const grouped: Record<string, { count: number; cids: string[] }> = {};
     returns.forEach((ret) => {
-      const reason = ret.return_reason || 'Unknown';
-      if (!grouped[reason]) {
-        grouped[reason] = { count: 0, cids: [] };
-      }
-      grouped[reason].count++;
-      if (!grouped[reason].cids.includes(ret.cid)) {
-        grouped[reason].cids.push(ret.cid);
+      if (ret.cc_fault > 0 && ret.reasons) {
+        ret.reasons.forEach((r) => {
+          if (r.reason.startsWith('CC:')) {
+            if (!grouped[r.reason]) {
+              grouped[r.reason] = { count: 0, cids: [] };
+            }
+            grouped[r.reason].count += r.count;
+            if (!grouped[r.reason].cids.includes(ret.cid)) {
+              grouped[r.reason].cids.push(ret.cid);
+            }
+          }
+        });
       }
     });
     return Object.entries(grouped).map(([reason, data]) => ({
@@ -448,13 +454,16 @@ export function ReturnsTabContent() {
                             <div className="flex items-center justify-center py-4">
                               <div className="animate-pulse text-sm text-gray-500">Loading CID details...</div>
                             </div>
-                          ) : ccReturns?.data?.length > 0 ? (
+                          ) : ccReturns?.data?.length > 0 ? (() => {
+                            const ccFaultGroups = groupCCFaultsByReason(ccReturns.data);
+                            return (
                             <div className="space-y-3">
                               <h4 className="text-sm font-medium text-gray-700 mb-3">
                                 Reasons breakdown for {cc.cc_name}
                               </h4>
+                              {ccFaultGroups.length > 0 ? (
                               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                                {groupReturnsByReason(ccReturns.data.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:'))).map((group) => (
+                                {ccFaultGroups.map((group) => (
                                   <div key={group.reason} className="bg-white p-3 rounded-lg border border-gray-100">
                                     <div className="flex items-center justify-between mb-2">
                                       <span className="text-sm font-medium text-gray-900">
@@ -477,11 +486,12 @@ export function ReturnsTabContent() {
                                   </div>
                                 ))}
                               </div>
-                              {ccReturns.data.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:')).length === 0 && (
+                              ) : (
                                 <p className="text-sm text-gray-400">No CC fault returns found</p>
                               )}
                             </div>
-                          ) : (
+                            );
+                          })() : (
                             <p className="text-sm text-gray-400 text-center">No return details available</p>
                           )}
                         </td>
