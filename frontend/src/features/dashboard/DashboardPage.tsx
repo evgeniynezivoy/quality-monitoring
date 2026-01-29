@@ -355,7 +355,7 @@ function ReturnsTabContent() {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Returns"
           value={overview?.total_returns?.toLocaleString() || 0}
@@ -791,7 +791,7 @@ export function DashboardPage() {
         {activeTab === 'issues' && (
           <>
         {/* KPI Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Issues"
             value={overview?.total_issues || 0}
