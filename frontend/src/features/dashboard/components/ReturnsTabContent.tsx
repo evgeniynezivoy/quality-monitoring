@@ -480,7 +480,12 @@ export function ReturnsTabContent() {
                                         </span>
                                       ))}
                                       {group.cids.length > 5 && (
-                                        <span className="text-xs text-gray-400">+{group.cids.length - 5} more</span>
+                                        <span
+                                          className="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded cursor-help"
+                                          title={group.cids.slice(5).join(', ')}
+                                        >
+                                          +{group.cids.length - 5} more
+                                        </span>
                                       )}
                                     </div>
                                   </div>
