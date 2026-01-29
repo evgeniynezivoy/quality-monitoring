@@ -448,13 +448,13 @@ export function ReturnsTabContent() {
                             <div className="flex items-center justify-center py-4">
                               <div className="animate-pulse text-sm text-gray-500">Loading CID details...</div>
                             </div>
-                          ) : ccReturns?.items?.length > 0 ? (
+                          ) : ccReturns?.data?.length > 0 ? (
                             <div className="space-y-3">
                               <h4 className="text-sm font-medium text-gray-700 mb-3">
                                 Reasons breakdown for {cc.cc_name}
                               </h4>
                               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                                {groupReturnsByReason(ccReturns.items.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:'))).map((group) => (
+                                {groupReturnsByReason(ccReturns.data.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:'))).map((group) => (
                                   <div key={group.reason} className="bg-white p-3 rounded-lg border border-gray-100">
                                     <div className="flex items-center justify-between mb-2">
                                       <span className="text-sm font-medium text-gray-900">
@@ -477,7 +477,7 @@ export function ReturnsTabContent() {
                                   </div>
                                 ))}
                               </div>
-                              {ccReturns.items.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:')).length === 0 && (
+                              {ccReturns.data.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:')).length === 0 && (
                                 <p className="text-sm text-gray-400">No CC fault returns found</p>
                               )}
                             </div>
