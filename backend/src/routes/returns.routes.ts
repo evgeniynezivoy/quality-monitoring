@@ -290,23 +290,47 @@ export async function returnsRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Get returns analytics for a period (week/month/quarter)
+  // Get returns analytics for a period (week/month/quarter) or specific year/month/quarter
   fastify.get(
     '/api/returns/analytics',
     { preHandler: authenticate },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const roleFilter = buildRoleWhereClause(request.user, 'r.cc_user_id', 'u');
       const queryParams = request.query as Record<string, string>;
-      const period = queryParams.period || 'month'; // week, month, quarter
+      const period = queryParams.period || 'month'; // week, month, quarter (relative to today)
+      const year = queryParams.year ? parseInt(queryParams.year, 10) : null;
+      const month = queryParams.month ? parseInt(queryParams.month, 10) : null;
+      const quarter = queryParams.quarter ? parseInt(queryParams.quarter, 10) : null;
 
-      // Calculate date range based on period
+      // Calculate date range based on params
       let dateCondition: string;
-      if (period === 'week') {
+      let periodLabel: string;
+
+      if (year && month) {
+        // Specific year and month
+        const monthStr = month.toString().padStart(2, '0');
+        dateCondition = `r.return_date >= '${year}-${monthStr}-01' AND r.return_date < '${year}-${monthStr}-01'::date + interval '1 month'`;
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        periodLabel = `${monthNames[month - 1]} ${year}`;
+      } else if (year && quarter) {
+        // Specific year and quarter
+        const startMonth = (quarter - 1) * 3 + 1;
+        const startMonthStr = startMonth.toString().padStart(2, '0');
+        dateCondition = `r.return_date >= '${year}-${startMonthStr}-01' AND r.return_date < '${year}-${startMonthStr}-01'::date + interval '3 months'`;
+        periodLabel = `Q${quarter} ${year}`;
+      } else if (year) {
+        // Full year
+        dateCondition = `r.return_date >= '${year}-01-01' AND r.return_date < '${year + 1}-01-01'`;
+        periodLabel = `${year}`;
+      } else if (period === 'week') {
         dateCondition = "r.return_date >= CURRENT_DATE - INTERVAL '7 days'";
+        periodLabel = 'This Week';
       } else if (period === 'quarter') {
         dateCondition = "r.return_date >= DATE_TRUNC('quarter', CURRENT_DATE)";
+        periodLabel = 'This Quarter';
       } else {
         dateCondition = "r.return_date >= DATE_TRUNC('month', CURRENT_DATE)";
+        periodLabel = 'This Month';
       }
 
       const params = [...roleFilter.params];
@@ -393,7 +417,11 @@ export async function returnsRoutes(fastify: FastifyInstance) {
       const totalCCFault = parseInt(summary.total_cc_fault || '0', 10);
 
       return reply.send({
-        period,
+        period: year ? 'custom' : period,
+        period_label: periodLabel,
+        year: year || null,
+        month: month || null,
+        quarter: quarter || null,
         summary: {
           total_records: parseInt(summary.total_records || '0', 10),
           total_returns: totalReturns,
@@ -434,6 +462,80 @@ export async function returnsRoutes(fastify: FastifyInstance) {
             blocks: row.blocks || [],
           };
         }),
+      });
+    }
+  );
+
+  // Get available periods (years/months with data)
+  fastify.get(
+    '/api/returns/available-periods',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const roleFilter = buildRoleWhereClause(request.user, 'r.cc_user_id', 'u');
+      const params = roleFilter.params;
+
+      // Get years and months with data
+      const periodsResult = await query(
+        `SELECT
+           EXTRACT(YEAR FROM r.return_date)::int as year,
+           EXTRACT(MONTH FROM r.return_date)::int as month,
+           COUNT(*) as count
+         FROM returns r
+         LEFT JOIN users u ON r.cc_user_id = u.id
+         WHERE ${roleFilter.clause}
+         GROUP BY year, month
+         ORDER BY year DESC, month DESC`,
+        params
+      );
+
+      // Get date range
+      const rangeResult = await query(
+        `SELECT
+           MIN(r.return_date)::date as earliest_date,
+           MAX(r.return_date)::date as latest_date
+         FROM returns r
+         LEFT JOIN users u ON r.cc_user_id = u.id
+         WHERE ${roleFilter.clause}`,
+        params
+      );
+
+      // Build structured response
+      const years: number[] = [];
+      const monthsByYear: Record<number, number[]> = {};
+
+      periodsResult.rows.forEach(row => {
+        const year = row.year;
+        const month = row.month;
+
+        if (!years.includes(year)) {
+          years.push(year);
+        }
+
+        if (!monthsByYear[year]) {
+          monthsByYear[year] = [];
+        }
+        if (!monthsByYear[year].includes(month)) {
+          monthsByYear[year].push(month);
+        }
+      });
+
+      // Sort months within each year
+      Object.keys(monthsByYear).forEach(year => {
+        monthsByYear[parseInt(year, 10)].sort((a, b) => a - b);
+      });
+
+      const range = rangeResult.rows[0] || {};
+      const formatDate = (val: unknown): string | null => {
+        if (!val) return null;
+        if (val instanceof Date) return val.toISOString().split('T')[0];
+        return String(val).split('T')[0];
+      };
+
+      return reply.send({
+        years,
+        months_by_year: monthsByYear,
+        earliest_date: formatDate(range.earliest_date),
+        latest_date: formatDate(range.latest_date),
       });
     }
   );

@@ -192,6 +192,20 @@ export const adminApi = {
   },
 };
 
+export interface ReturnsAnalyticsParams {
+  period?: 'week' | 'month' | 'quarter';
+  year?: number;
+  month?: number;
+  quarter?: number;
+}
+
+export interface AvailablePeriodsResponse {
+  years: number[];
+  months_by_year: Record<number, number[]>;
+  earliest_date: string | null;
+  latest_date: string | null;
+}
+
 export const returnsApi = {
   list: async (params?: ReturnsListParams) => {
     const response = await api.get('/api/returns', { params });
@@ -221,8 +235,12 @@ export const returnsApi = {
     const response = await api.get('/api/returns/sync/logs', { params: { limit } });
     return response.data;
   },
-  analytics: async (period: 'week' | 'month' | 'quarter' = 'month') => {
-    const response = await api.get('/api/returns/analytics', { params: { period } });
+  analytics: async (params: ReturnsAnalyticsParams = { period: 'month' }) => {
+    const response = await api.get('/api/returns/analytics', { params });
+    return response.data;
+  },
+  availablePeriods: async (): Promise<AvailablePeriodsResponse> => {
+    const response = await api.get('/api/returns/available-periods');
     return response.data;
   },
 };

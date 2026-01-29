@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { returnsApi } from '@/lib/api';
+import { returnsApi, type ReturnsAnalyticsParams } from '@/lib/api';
 import {
   TrendingUp,
   AlertTriangle,
@@ -21,8 +21,7 @@ import {
 import { StatCard } from './StatCard';
 import { ReasonDistributionChart } from './ReasonDistributionChart';
 import { TeamDistributionChart } from './TeamDistributionChart';
-
-type AnalyticsPeriod = 'week' | 'month' | 'quarter';
+import { DatePeriodSelector } from './DatePeriodSelector';
 
 interface CCData {
   cc_id: number;
@@ -45,7 +44,7 @@ interface ReturnItem {
 }
 
 export function ReturnsTabContent() {
-  const [analyticsPeriod, setAnalyticsPeriod] = useState<AnalyticsPeriod>('month');
+  const [dateParams, setDateParams] = useState<ReturnsAnalyticsParams>({ period: 'month' });
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [expandedCCId, setExpandedCCId] = useState<number | null>(null);
 
@@ -60,8 +59,8 @@ export function ReturnsTabContent() {
   });
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
-    queryKey: ['returns', 'analytics', analyticsPeriod],
-    queryFn: () => returnsApi.analytics(analyticsPeriod),
+    queryKey: ['returns', 'analytics', dateParams],
+    queryFn: () => returnsApi.analytics(dateParams),
   });
 
   const { data: ccReturns, isLoading: ccReturnsLoading } = useQuery({
@@ -96,7 +95,8 @@ export function ReturnsTabContent() {
     );
   }
 
-  const periodLabels = { week: 'This Week', month: 'This Month', quarter: 'This Quarter' };
+  // Get period label from analytics response or use default
+  const periodLabel = analytics?.period_label || 'This Month';
 
   const filteredCCs = selectedTeamId
     ? analytics?.by_cc?.filter((cc: CCData) => cc.team_lead_id === selectedTeamId)
@@ -132,6 +132,9 @@ export function ReturnsTabContent() {
 
   return (
     <div className="space-y-6">
+      {/* Date Period Selector */}
+      <DatePeriodSelector value={dateParams} onChange={setDateParams} />
+
       {/* KPI Cards */}
       <div className="flex flex-wrap gap-6">
         <div className="flex-1 min-w-[200px]">
@@ -214,21 +217,7 @@ export function ReturnsTabContent() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Period Summary</h3>
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-              {(['week', 'month', 'quarter'] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setAnalyticsPeriod(p)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    analyticsPeriod === p
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                </button>
-              ))}
-            </div>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabel}</span>
           </div>
           {analyticsLoading ? (
             <div className="animate-pulse space-y-3">
@@ -269,7 +258,7 @@ export function ReturnsTabContent() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Fault Reasons Distribution</h3>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabel}</span>
           </div>
           <ReasonDistributionChart data={analytics?.by_reason || []} />
         </div>
@@ -288,7 +277,7 @@ export function ReturnsTabContent() {
                 </button>
               )}
             </div>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabel}</span>
           </div>
           <TeamDistributionChart
             data={analytics?.by_team || []}
@@ -304,7 +293,7 @@ export function ReturnsTabContent() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">CC Fault Distribution</h3>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabel}</span>
           </div>
           {analytics?.by_reason?.length > 0 ? (
             <div className="overflow-x-auto">
@@ -347,7 +336,7 @@ export function ReturnsTabContent() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">By Team Lead</h3>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabel}</span>
           </div>
           {analytics?.by_team?.length > 0 ? (
             <div className="space-y-3">
@@ -398,7 +387,7 @@ export function ReturnsTabContent() {
               </p>
             )}
           </div>
-          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]} • Active CCs only</span>
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabel} • Active CCs only</span>
         </div>
         {filteredCCs?.length > 0 ? (
           <div className="overflow-x-auto">

@@ -5,3 +5,4 @@ export { TabButton } from './TabButton';
 export { ReturnsTabContent } from './ReturnsTabContent';
 export { ReasonDistributionChart } from './ReasonDistributionChart';
 export { TeamDistributionChart } from './TeamDistributionChart';
+export { DatePeriodSelector } from './DatePeriodSelector';
