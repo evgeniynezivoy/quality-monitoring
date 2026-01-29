@@ -340,9 +340,9 @@ REPORT_RECIPIENTS=ops1@example.com,ops2@example.com
 
 | Service | URL | Port |
 |---------|-----|------|
-| Frontend | http://37.27.5.172:8080 | 8080 |
-| Backend API | http://37.27.5.172:3000 | 3000 |
-| PostgreSQL | 37.27.5.172:5450 | 5450 |
+| Frontend | http://46.62.208.26:8080 | 8080 |
+| Backend API | http://46.62.208.26:3000 | 3000 |
+| PostgreSQL | 46.62.208.26:5450 | 5450 |
 
 ## Common Commands
 
@@ -392,6 +392,12 @@ curl -X POST http://localhost:3000/api/returns/sync
 | [Google Sheets Sync](docs/SYNC.md) | Data sources, column mappings |
 
 ## Changelog
+
+### v1.3.2 (January 29, 2026)
+- Migrated to new server (46.62.208.26)
+- Added new Operations Team email recipients (shchenina, podorvanova)
+- Fixed KPI cards layout - equal width using flex
+- Added initial_returns_number column to returns table schema
 
 ### v1.3.1 (January 29, 2026)
 - Fixed issue description mapping - added 'issue' column for LV source

@@ -4,9 +4,9 @@
 
 | Service | URL | Port |
 |---------|-----|------|
-| Frontend | http://37.27.5.172:8080 | 8080 |
-| Backend API | http://37.27.5.172:3000 | 3000 |
-| PostgreSQL | 37.27.5.172:5450 | 5450 |
+| Frontend | http://46.62.208.26:8080 | 8080 |
+| Backend API | http://46.62.208.26:3000 | 3000 |
+| PostgreSQL | 46.62.208.26:5450 | 5450 |
 
 ## Prerequisites
 

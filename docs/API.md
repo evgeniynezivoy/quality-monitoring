@@ -1,6 +1,6 @@
 # API Reference
 
-Base URL: `http://localhost:3000` (dev) | `http://37.27.5.172:3000` (prod)
+Base URL: `http://localhost:3000` (dev) | `http://46.62.208.26:3000` (prod)
 
 ## Authentication
 

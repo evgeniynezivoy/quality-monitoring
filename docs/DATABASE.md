@@ -5,7 +5,7 @@ PostgreSQL 15 database for Quality Monitoring system.
 ## Connection
 
 ```
-Host: localhost (dev) | 37.27.5.172 (prod)
+Host: localhost (dev) | 46.62.208.26 (prod)
 Port: 5432 (dev) | 5450 (prod)
 Database: quality_monitoring
 User: quality_user
