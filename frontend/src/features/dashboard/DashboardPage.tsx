@@ -355,35 +355,43 @@ function ReturnsTabContent() {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Returns"
-          value={overview?.total_returns?.toLocaleString() || 0}
-          subtitle="All returned leads"
-          icon={<Package className="w-6 h-6" />}
-          color="indigo"
-        />
-        <StatCard
-          title="CC Fault"
-          value={overview?.total_cc_fault?.toLocaleString() || 0}
-          subtitle={`${overview?.cc_fault_percent || 0}% of returns`}
-          icon={<AlertTriangle className="w-6 h-6" />}
-          color="rose"
-        />
-        <StatCard
-          title="This Week"
-          value={overview?.cc_fault_this_week || 0}
-          subtitle={`of ${overview?.returns_this_week || 0} returns (${overview?.cc_fault_percent_this_week || 0}%)`}
-          icon={<Calendar className="w-6 h-6" />}
-          color="emerald"
-        />
-        <StatCard
-          title="This Month"
-          value={overview?.cc_fault_this_month || 0}
-          subtitle={`of ${overview?.returns_this_month || 0} returns (${overview?.cc_fault_percent_this_month || 0}%)`}
-          icon={<TrendingUp className="w-6 h-6" />}
-          color="amber"
-        />
+      <div className="flex flex-wrap gap-6">
+        <div className="flex-1 min-w-[200px]">
+          <StatCard
+            title="Total Returns"
+            value={overview?.total_returns?.toLocaleString() || 0}
+            subtitle="All returned leads"
+            icon={<Package className="w-6 h-6" />}
+            color="indigo"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <StatCard
+            title="CC Fault"
+            value={overview?.total_cc_fault?.toLocaleString() || 0}
+            subtitle={`${overview?.cc_fault_percent || 0}% of returns`}
+            icon={<AlertTriangle className="w-6 h-6" />}
+            color="rose"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <StatCard
+            title="This Week"
+            value={overview?.cc_fault_this_week || 0}
+            subtitle={`of ${overview?.returns_this_week || 0} returns (${overview?.cc_fault_percent_this_week || 0}%)`}
+            icon={<Calendar className="w-6 h-6" />}
+            color="emerald"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <StatCard
+            title="This Month"
+            value={overview?.cc_fault_this_month || 0}
+            subtitle={`of ${overview?.returns_this_month || 0} returns (${overview?.cc_fault_percent_this_month || 0}%)`}
+            icon={<TrendingUp className="w-6 h-6" />}
+            color="amber"
+          />
+        </div>
       </div>
 
       {/* Trend Chart & Period Analytics Summary */}
@@ -791,36 +799,44 @@ export function DashboardPage() {
         {activeTab === 'issues' && (
           <>
         {/* KPI Cards */}
-        <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total Issues"
-            value={overview?.total_issues || 0}
-            subtitle="All time"
-            icon={<AlertCircle className="w-6 h-6" />}
-            color="indigo"
-          />
-          <StatCard
-            title="This Week"
-            value={overview?.issues_this_week || 0}
-            subtitle={`${improvingCount} ↓ fewer errors, ${decliningCount} ↑ more errors`}
-            icon={<Calendar className="w-6 h-6" />}
-            trend={teamAnalytics.reduce((sum, t) => sum + t.week_trend, 0) / (teamAnalytics.length || 1)}
-            color="emerald"
-          />
-          <StatCard
-            title="This Month"
-            value={overview?.issues_this_month || 0}
-            subtitle="Current period"
-            icon={<TrendingUp className="w-6 h-6" />}
-            color="amber"
-          />
-          <StatCard
-            title="Critical Issues"
-            value={overview?.critical_issues || 0}
-            subtitle={`${((overview?.critical_issues || 0) / (overview?.total_issues || 1) * 100).toFixed(1)}% of total`}
-            icon={<AlertTriangle className="w-6 h-6" />}
-            color="rose"
-          />
+        <div className="flex flex-wrap gap-6">
+          <div className="flex-1 min-w-[200px]">
+            <StatCard
+              title="Total Issues"
+              value={overview?.total_issues || 0}
+              subtitle="All time"
+              icon={<AlertCircle className="w-6 h-6" />}
+              color="indigo"
+            />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <StatCard
+              title="This Week"
+              value={overview?.issues_this_week || 0}
+              subtitle={`${improvingCount} ↓ fewer errors, ${decliningCount} ↑ more errors`}
+              icon={<Calendar className="w-6 h-6" />}
+              trend={teamAnalytics.reduce((sum, t) => sum + t.week_trend, 0) / (teamAnalytics.length || 1)}
+              color="emerald"
+            />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <StatCard
+              title="This Month"
+              value={overview?.issues_this_month || 0}
+              subtitle="Current period"
+              icon={<TrendingUp className="w-6 h-6" />}
+              color="amber"
+            />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <StatCard
+              title="Critical Issues"
+              value={overview?.critical_issues || 0}
+              subtitle={`${((overview?.critical_issues || 0) / (overview?.total_issues || 1) * 100).toFixed(1)}% of total`}
+              icon={<AlertTriangle className="w-6 h-6" />}
+              color="rose"
+            />
+          </div>
         </div>
 
         {/* Trend Chart & Team Summary */}
