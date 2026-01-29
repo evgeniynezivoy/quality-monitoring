@@ -19,7 +19,7 @@ const COLUMN_MAPPINGS: ColumnMapping = {
   issue_date: ['date', 'issue_date', 'дата', 'data'],
   responsible_cc_name: ['cc', 'responsible', 'cc_name', 'responsible_cc', 'ответственный', 'сотрудник'],
   cid: ['cid', 'client_id', 'customer_id', 'id_клиента'],
-  issue_type: ['type', 'issue_type', 'тип', 'тип_ошибки', 'error_type'],
+  issue_type: ['issue', 'type', 'issue_type', 'тип', 'тип_ошибки', 'error_type'],
   comment: ['comment', 'comments', 'комментарий', 'примечание', 'note', 'notes'],
   issue_rate: ['rate', 'issue_rate', 'severity', 'критичность', 'оценка'],
   issue_category: ['category', 'issue_category', 'категория', 'тип_клиент'],
