@@ -49,3 +49,8 @@ export const SOURCE_BADGE_CLASSES: Record<string, string> = {
 };
 
 export const DEFAULT_SOURCE_BADGE_CLASS = 'bg-gray-100 text-gray-700';
+
+export const REASON_COLORS = [
+  '#f43f5e', '#f97316', '#eab308', '#22c55e',
+  '#06b6d4', '#6366f1', '#a855f7', '#ec4899',
+];

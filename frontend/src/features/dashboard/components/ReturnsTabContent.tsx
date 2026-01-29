@@ -6,6 +6,8 @@ import {
   AlertTriangle,
   Calendar,
   Package,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -17,11 +19,35 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { StatCard } from './StatCard';
+import { ReasonDistributionChart } from './ReasonDistributionChart';
+import { TeamDistributionChart } from './TeamDistributionChart';
 
 type AnalyticsPeriod = 'week' | 'month' | 'quarter';
 
+interface CCData {
+  cc_id: number;
+  cc_name: string;
+  cc_abbreviation?: string;
+  team_lead?: string;
+  team_lead_id?: number;
+  total_returns: number;
+  total_cc_fault: number;
+  cc_fault_percent: number;
+  blocks?: string[];
+}
+
+interface ReturnItem {
+  id: number;
+  cid: string;
+  return_reason: string;
+  return_date: string;
+  block?: string;
+}
+
 export function ReturnsTabContent() {
   const [analyticsPeriod, setAnalyticsPeriod] = useState<AnalyticsPeriod>('month');
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [expandedCCId, setExpandedCCId] = useState<number | null>(null);
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['returns', 'overview'],
@@ -36,6 +62,12 @@ export function ReturnsTabContent() {
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ['returns', 'analytics', analyticsPeriod],
     queryFn: () => returnsApi.analytics(analyticsPeriod),
+  });
+
+  const { data: ccReturns, isLoading: ccReturnsLoading } = useQuery({
+    queryKey: ['returns', 'cc-details', expandedCCId],
+    queryFn: () => returnsApi.list({ cc_user_id: expandedCCId!, limit: 50 }),
+    enabled: expandedCCId !== null,
   });
 
   if (overviewLoading) {
@@ -65,6 +97,38 @@ export function ReturnsTabContent() {
   }
 
   const periodLabels = { week: 'This Week', month: 'This Month', quarter: 'This Quarter' };
+
+  const filteredCCs = selectedTeamId
+    ? analytics?.by_cc?.filter((cc: CCData) => cc.team_lead_id === selectedTeamId)
+    : analytics?.by_cc;
+
+  const handleTeamClick = (teamLeadId: number | null) => {
+    setSelectedTeamId(teamLeadId);
+    setExpandedCCId(null);
+  };
+
+  const toggleExpandedCC = (ccId: number) => {
+    setExpandedCCId(expandedCCId === ccId ? null : ccId);
+  };
+
+  const groupReturnsByReason = (returns: ReturnItem[]) => {
+    const grouped: Record<string, { count: number; cids: string[] }> = {};
+    returns.forEach((ret) => {
+      const reason = ret.return_reason || 'Unknown';
+      if (!grouped[reason]) {
+        grouped[reason] = { count: 0, cids: [] };
+      }
+      grouped[reason].count++;
+      if (!grouped[reason].cids.includes(ret.cid)) {
+        grouped[reason].cids.push(ret.cid);
+      }
+    });
+    return Object.entries(grouped).map(([reason, data]) => ({
+      reason,
+      count: data.count,
+      cids: data.cids,
+    }));
+  };
 
   return (
     <div className="space-y-6">
@@ -199,9 +263,44 @@ export function ReturnsTabContent() {
         </div>
       </div>
 
-      {/* Period Analytics - Reasons & Teams */}
+      {/* Visualizations - Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* CC Fault Reasons Distribution */}
+        {/* Reason Distribution Donut Chart */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Fault Reasons Distribution</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+          </div>
+          <ReasonDistributionChart data={analytics?.by_reason || []} />
+        </div>
+
+        {/* Team Distribution Bar Chart */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Team Comparison</h3>
+              {selectedTeamId && (
+                <button
+                  onClick={() => handleTeamClick(null)}
+                  className="text-xs text-rose-600 hover:text-rose-700 mt-1"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]}</span>
+          </div>
+          <TeamDistributionChart
+            data={analytics?.by_team || []}
+            onTeamClick={handleTeamClick}
+            selectedTeamId={selectedTeamId}
+          />
+        </div>
+      </div>
+
+      {/* Period Analytics - Reasons Table & Teams List */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* CC Fault Reasons Distribution Table */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">CC Fault Distribution</h3>
@@ -288,17 +387,25 @@ export function ReturnsTabContent() {
         </div>
       </div>
 
-      {/* CC Details Table */}
+      {/* CC Details Table with Expandable Rows */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">CC Fault Details</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">CC Fault Details</h3>
+            {selectedTeamId && (
+              <p className="text-xs text-rose-600 mt-1">
+                Filtered by team • <button onClick={() => handleTeamClick(null)} className="underline">Show all</button>
+              </p>
+            )}
+          </div>
           <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{periodLabels[analyticsPeriod]} • Active CCs only</span>
         </div>
-        {analytics?.by_cc?.length > 0 ? (
+        {filteredCCs?.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase w-8"></th>
                   <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">CC</th>
                   <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">Team Lead</th>
                   <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 uppercase">Blocks</th>
@@ -308,39 +415,90 @@ export function ReturnsTabContent() {
                 </tr>
               </thead>
               <tbody>
-                {analytics.by_cc.map((cc: {
-                  cc_id: number;
-                  cc_name: string;
-                  cc_abbreviation?: string;
-                  team_lead?: string;
-                  total_returns: number;
-                  total_cc_fault: number;
-                  cc_fault_percent: number;
-                  blocks?: string[];
-                }) => (
-                  <tr key={cc.cc_id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-3 px-2">
-                      <div>
-                        <p className="font-medium text-gray-900">{cc.cc_name}</p>
-                        {cc.cc_abbreviation && (
-                          <p className="text-xs text-gray-400">{cc.cc_abbreviation}</p>
+                {filteredCCs.map((cc: CCData) => (
+                  <>
+                    <tr
+                      key={cc.cc_id}
+                      className={`border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${expandedCCId === cc.cc_id ? 'bg-rose-50' : ''}`}
+                      onClick={() => toggleExpandedCC(cc.cc_id)}
+                    >
+                      <td className="py-3 px-2">
+                        {expandedCCId === cc.cc_id ? (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
                         )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-2 text-sm text-gray-600">{cc.team_lead || '-'}</td>
-                    <td className="py-3 px-2">
-                      <div className="flex flex-wrap gap-1">
-                        {cc.blocks?.slice(0, 3).map((block: string) => (
-                          <span key={block} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                            {block}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="py-3 px-2 text-right text-gray-700">{cc.total_returns?.toLocaleString()}</td>
-                    <td className="py-3 px-2 text-right font-semibold text-rose-600">{cc.total_cc_fault}</td>
-                    <td className="py-3 px-2 text-right text-gray-500">{cc.cc_fault_percent}%</td>
-                  </tr>
+                      </td>
+                      <td className="py-3 px-2">
+                        <div>
+                          <p className="font-medium text-gray-900">{cc.cc_name}</p>
+                          {cc.cc_abbreviation && (
+                            <p className="text-xs text-gray-400">{cc.cc_abbreviation}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-sm text-gray-600">{cc.team_lead || '-'}</td>
+                      <td className="py-3 px-2">
+                        <div className="flex flex-wrap gap-1">
+                          {cc.blocks?.slice(0, 3).map((block: string) => (
+                            <span key={block} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                              {block}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-right text-gray-700">{cc.total_returns?.toLocaleString()}</td>
+                      <td className="py-3 px-2 text-right font-semibold text-rose-600">{cc.total_cc_fault}</td>
+                      <td className="py-3 px-2 text-right text-gray-500">{cc.cc_fault_percent}%</td>
+                    </tr>
+                    {/* Expanded Row - CID Details */}
+                    {expandedCCId === cc.cc_id && (
+                      <tr key={`${cc.cc_id}-expanded`}>
+                        <td colSpan={7} className="bg-gray-50 p-4 border-b border-gray-100">
+                          {ccReturnsLoading ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="animate-pulse text-sm text-gray-500">Loading CID details...</div>
+                            </div>
+                          ) : ccReturns?.items?.length > 0 ? (
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                                Reasons breakdown for {cc.cc_name}
+                              </h4>
+                              <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                {groupReturnsByReason(ccReturns.items.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:'))).map((group) => (
+                                  <div key={group.reason} className="bg-white p-3 rounded-lg border border-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-sm font-medium text-gray-900">
+                                        {group.reason.replace('CC: ', '')}
+                                      </span>
+                                      <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
+                                        {group.count}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {group.cids.slice(0, 5).map((cid) => (
+                                        <span key={cid} className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                          {cid}
+                                        </span>
+                                      ))}
+                                      {group.cids.length > 5 && (
+                                        <span className="text-xs text-gray-400">+{group.cids.length - 5} more</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {ccReturns.items.filter((r: ReturnItem) => r.return_reason?.startsWith('CC:')).length === 0 && (
+                                <p className="text-sm text-gray-400">No CC fault returns found</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 text-center">No return details available</p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>
