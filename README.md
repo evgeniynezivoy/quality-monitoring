@@ -393,6 +393,12 @@ curl -X POST http://localhost:3000/api/returns/sync
 
 ## Changelog
 
+### v1.3.1 (January 29, 2026)
+- Fixed issue description mapping - added 'issue' column for LV source
+- Added Returns sync to cron schedule (every 10 minutes with Issues)
+- Skip issues without Responsible CC name (prevents "Unknown" entries)
+- Added PROJECT_ESTIMATE.md with outsourcing cost analysis
+
 ### v1.3.0 (January 2026)
 - Added Returns Analytics with period selector (Week/Month/Quarter)
 - Added CC Fault distribution by reason

@@ -2,9 +2,15 @@
 
 ## Overview
 
-The system automatically syncs data from Google Sheets every 10 minutes. Each source (LV, CS, Block, CDT_CW, QA) has its own Google Sheet with quality issue data.
+The system automatically syncs data from Google Sheets every 10 minutes:
+- **Issues** from 5 sources (LV, CS, Block, CDT_CW, QA)
+- **Returns** from Returns tracker sheet
+
+Each sync updates existing records and inserts new ones based on row hash.
 
 ## Data Sources
+
+### Issues Sources
 
 | Source | Sheet ID | GID | Description |
 |--------|----------|-----|-------------|
@@ -13,6 +19,12 @@ The system automatically syncs data from Google Sheets every 10 minutes. Each so
 | Block | 13TpypRYuC3t0AN_rJAiglsJ0oioysz79dQm1ojsYcEE | 0 | Block team issues |
 | CDT_CW | 1S45EyniKYCe550M6inZXL7jzKvNJR22H-beX5BLiIoM | 0 | CDT/CW issues |
 | QA | 1boJ69H1jq5zOHHStvxlHD5qYWSJ_JhAqFl1GHzwY1I0 | 1250110979 | QA reported issues |
+
+### Returns Source
+
+| Source | Sheet ID | GID | Description |
+|--------|----------|-----|-------------|
+| Returns | 1Gc0rpsOjmvUjpVgmdfbfsP4elRFpOL6GMJYjkuJyU2s | 1928916845 | Lead returns tracker |
 
 ## Google Service Account Setup
 
@@ -51,7 +63,7 @@ const COLUMN_MAPPINGS = {
   issue_date: ['date', 'issue_date', 'дата', 'data'],
   responsible_cc_name: ['cc', 'responsible', 'cc_name', 'responsible_cc', 'ответственный', 'сотрудник'],
   cid: ['cid', 'client_id', 'customer_id', 'id_клиента'],
-  issue_type: ['type', 'issue_type', 'тип', 'тип_ошибки', 'error_type'],
+  issue_type: ['issue', 'type', 'issue_type', 'тип', 'тип_ошибки', 'error_type'],  // 'issue' first for LV source
   comment: ['comment', 'comments', 'комментарий', 'примечание', 'note', 'notes'],
   issue_rate: ['rate', 'issue_rate', 'severity', 'критичность', 'оценка'],
   issue_category: ['category', 'issue_category', 'категория', 'тип_клиент'],
@@ -60,7 +72,9 @@ const COLUMN_MAPPINGS = {
 };
 ```
 
-The sync service tries each alias until it finds a match.
+The sync service tries each alias in order until it finds a match.
+
+**Note:** `issue` is listed first in `issue_type` because LV source uses `issue` column for descriptions, while QA uses `issue_type`.
 
 ## Date Parsing
 
@@ -96,36 +110,66 @@ function parseDate(value: string): string | null {
 1. Cron triggers sync (every 10 min)
         │
         ▼
-2. Get active sources from issue_sources table
+2. ISSUES SYNC:
+   Get active sources from issue_sources table
         │
         ▼
 3. For each source:
-   ┌────────────────────────────────────┐
-   │ a. Create sync_log (status=running)│
-   │ b. Fetch data from Google Sheets   │
-   │ c. For each row:                   │
-   │    - Parse date (skip if invalid)  │
-   │    - Normalize column names        │
-   │    - Generate row hash             │
-   │    - Upsert into issues table      │
-   │ d. Link CC names to users          │
-   │ e. Update sync_log (status=success)│
-   └────────────────────────────────────┘
+   ┌────────────────────────────────────────┐
+   │ a. Create sync_log (status=running)    │
+   │ b. Fetch data from Google Sheets       │
+   │ c. For each row:                       │
+   │    - Parse date (skip if invalid)      │
+   │    - Check CC name (skip if empty)     │  ← Prevents "Unknown" entries
+   │    - Normalize column names            │
+   │    - Generate row hash                 │
+   │    - Upsert into issues table          │
+   │ d. Link CC names to users              │
+   │ e. Update sync_log (status=success)    │
+   └────────────────────────────────────────┘
         │
         ▼
-4. Done
+4. RETURNS SYNC:
+   ┌────────────────────────────────────────┐
+   │ a. Fetch data from Returns sheet       │
+   │ b. For each row:                       │
+   │    - Parse return date                 │
+   │    - Check initial_returns_number > 0  │
+   │    - Parse CC reasons (CC: prefix)     │
+   │    - Link CC abbreviation to user      │
+   │    - Upsert into returns table         │
+   └────────────────────────────────────────┘
+        │
+        ▼
+5. Done
 ```
+
+### Skip Logic
+
+Rows are **skipped** (not imported) if:
+- Date is missing or invalid
+- Responsible CC name is empty (prevents "Unknown" entries when QA hasn't finished filling data)
 
 ### Deduplication
 
-Each row is identified by a SHA256 hash of its content:
+Each row is identified by a SHA256 hash of **key fields only**:
 
 ```typescript
-function generateRowHash(row: Record<string, string>): string {
-  const str = JSON.stringify(row);
-  return crypto.createHash('sha256').update(str).digest('hex').substring(0, 64);
+function generateRowHash(row: Record<string, string>, sourceId: number): string {
+  // Hash based on: sourceId + CID + Date + CC Name
+  const cid = findColumnValue(row, COLUMN_MAPPINGS.cid) || '';
+  const date = findColumnValue(row, COLUMN_MAPPINGS.issue_date) || '';
+  const cc = findColumnValue(row, COLUMN_MAPPINGS.responsible_cc_name) || '';
+
+  const keyStr = `${sourceId}|${cid.toLowerCase().trim()}|${date.trim()}|${cc.toLowerCase().trim()}`;
+  return crypto.createHash('sha256').update(keyStr).digest('hex').substring(0, 64);
 }
 ```
+
+**Why key fields only?**
+- Allows updates to non-key fields (comment, rate, category) without creating duplicates
+- If someone edits a comment in Google Sheets, the next sync will UPDATE the existing record
+- Only changes to CID, Date, or CC Name create new records
 
 The `(source_id, external_row_hash)` unique constraint prevents duplicates.
 
@@ -184,9 +228,23 @@ curl -X GET "https://sheets.googleapis.com/v4/spreadsheets/SHEET_ID/values/Sheet
 - Rows without valid dates are skipped
 - Check sync logs for "skipped" count
 
+**Check CC name:**
+- Rows without Responsible CC name are skipped
+- This prevents "Unknown" entries when QA hasn't finished filling data
+
 **Check column names:**
 - Verify column headers match mappings
 - Add new aliases to `COLUMN_MAPPINGS` if needed
+
+### "Unknown" Entries Appearing
+
+If issues appear with "Unknown" CC name:
+1. This shouldn't happen anymore (fixed in v1.3.1)
+2. Delete existing Unknown entries:
+   ```sql
+   DELETE FROM issues WHERE responsible_cc_name IS NULL OR responsible_cc_name = '';
+   ```
+3. Verify sync service has the skip logic for empty CC names
 
 ### Users Not Linked
 
